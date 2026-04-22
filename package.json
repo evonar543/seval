@@ -1,0 +1,16 @@
+{
+  "name": "seval",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local script-first AI-style video generator for map, narration, and scenario explainer videos.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "mcp": "node tools/mcp-server.mjs",
+    "sample:chicken-nuggets": "node scripts/render-sample-video.mjs chicken-nuggets"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

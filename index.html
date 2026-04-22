@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Seval Video Studio</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local modular video studio</p>
+          <h1>Seval</h1>
+        </div>
+        <div class="status-pill" id="systemStatus">Checking tools...</div>
+      </header>
+
+      <section class="workspace">
+        <aside class="controls" aria-label="Generator controls">
+          <div class="panel prompt-panel">
+            <div class="panel-head">
+              <h2>Prompt</h2>
+              <button class="icon-button" id="sampleBtn" title="Load sample">Reset</button>
+            </div>
+            <textarea id="promptInput" rows="5" spellcheck="true">Explain why AI agents are changing how people build software, using a strong hook, stock footage, charts, code-style visuals, and clean captions.</textarea>
+
+            <div class="field-grid">
+              <label>
+                Preset
+                <select id="presetSelect">
+                  <option value="auto">Auto pick</option>
+                  <option value="explainer">Faceless explainer</option>
+                  <option value="tech">Tech breakdown</option>
+                  <option value="business">Business / finance</option>
+                  <option value="history">History mini-doc</option>
+                  <option value="science">Science visualizer</option>
+                  <option value="tutorial">Tutorial</option>
+                  <option value="product">Product / ad</option>
+                  <option value="gaming">Gaming / lore</option>
+                  <option value="military">Military explainer</option>
+                </select>
+              </label>
+              <label>
+                Style
+                <select id="styleSelect">
+                  <option value="explainer">Explainer</option>
+                  <option value="news">News brief</option>
+                  <option value="documentary">Documentary</option>
+                  <option value="training">Training simulation</option>
+                </select>
+              </label>
+              <label>
+                Length
+                <select id="lengthSelect">
+                  <option value="short">45 sec</option>
+                  <option value="medium" selected>75 sec</option>
+                  <option value="long">120 sec</option>
+                </select>
+              </label>
+              <label>
+                Pace
+                <select id="paceSelect">
+                  <option value="calm">Calm</option>
+                  <option value="dramatic" selected>Dramatic</option>
+                  <option value="fast">Fast</option>
+                </select>
+              </label>
+              <label>
+                Voice
+                <select id="voiceSelect">
+                  <option value="">Default Windows voice</option>
+                </select>
+              </label>
+              <label>
+                Music
+                <select id="musicSelect">
+                  <option value="tension">Low tension</option>
+                  <option value="news">News pulse</option>
+                  <option value="cinematic">Cinematic build</option>
+                  <option value="quiet">Quiet bed</option>
+                </select>
+              </label>
+              <label>
+                Footage source
+                <select id="sourceSelect">
+                  <option value="all">All public sources</option>
+                  <option value="commons">Wikimedia Commons</option>
+                  <option value="archive">Internet Archive</option>
+                  <option value="nasa">NASA</option>
+                  <option value="pexels">Pexels</option>
+                  <option value="pixabay">Pixabay</option>
+                  <option value="dvids">DVIDS</option>
+                </select>
+              </label>
+              <label>
+                Captions
+                <select id="captionSelect">
+                  <option value="documentary">Documentary lower-third</option>
+                  <option value="shorts">Shorts punch captions</option>
+                  <option value="clean">Clean subtitle</option>
+                  <option value="boxed">Boxed explainer</option>
+                </select>
+              </label>
+              <label>
+                Accent
+                <input id="accentInput" type="color" value="#8abd5f" />
+              </label>
+            </div>
+
+            <div class="button-row">
+              <button class="primary" id="generateBtn">Generate storyboard</button>
+              <button id="previewBtn">Preview</button>
+            </div>
+          </div>
+
+          <div class="panel project-panel">
+            <div class="panel-head">
+              <h2>Projects</h2>
+              <span id="projectStatus">Not saved</span>
+            </div>
+            <label>
+              Project name
+              <input id="projectNameInput" type="text" value="Untitled Seval Video" />
+            </label>
+            <div class="button-row">
+              <button class="primary" id="saveProjectBtn">Save project</button>
+              <button id="refreshProjectsBtn">Refresh</button>
+            </div>
+            <label>
+              Load saved project
+              <select id="projectSelect">
+                <option value="">No saved projects yet</option>
+              </select>
+            </label>
+            <div class="button-row">
+              <button id="loadProjectBtn">Load</button>
+              <button id="deleteProjectBtn">Delete</button>
+            </div>
+          </div>
+
+          <div class="panel script-panel">
+            <div class="panel-head">
+              <h2>Narration</h2>
+              <span id="beatCount">0 beats</span>
+            </div>
+            <textarea id="scriptInput" rows="9" spellcheck="true"></textarea>
+          </div>
+
+          <div class="panel director-panel">
+            <div class="panel-head">
+              <h2>Auto Director</h2>
+              <span id="directorScore">Score --</span>
+            </div>
+            <div class="button-row">
+              <button class="primary" id="autoDirectBtn">Improve video</button>
+              <button id="directorPlanBtn">Plan</button>
+            </div>
+            <div id="directorNotes" class="notes-box"></div>
+          </div>
+
+          <div class="panel stock-panel">
+            <div class="panel-head">
+              <h2>Source Keys</h2>
+              <span id="providerStatus">Free sources ready</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Pexels key
+                <input id="pexelsKeyInput" type="text" placeholder="Optional" />
+              </label>
+              <label>
+                Pixabay key
+                <input id="pixabayKeyInput" type="text" placeholder="Optional" />
+              </label>
+              <label>
+                DVIDS key
+                <input id="dvidsKeyInput" type="text" placeholder="Optional" />
+              </label>
+            </div>
+            <div class="button-row">
+              <button class="primary" id="saveProviderKeysBtn">Save keys</button>
+              <button id="checkProvidersBtn">Check sources</button>
+            </div>
+            <div id="providerBox" class="install-box"></div>
+          </div>
+
+          <div class="panel stock-panel">
+            <div class="panel-head">
+              <h2>Public Footage</h2>
+              <span id="stockStatus">No clips assigned</span>
+            </div>
+            <label>
+              Search clips
+              <input id="stockSearchInput" type="text" placeholder="technology computer screen" />
+            </label>
+            <div class="button-row">
+              <button class="primary" id="stockSearchBtn">Search</button>
+              <button id="autoStockBtn">Auto-match beats</button>
+            </div>
+            <div id="stockResults" class="stock-results"></div>
+          </div>
+
+          <div class="panel music-panel">
+            <div class="panel-head">
+              <h2>Music Library</h2>
+              <span id="musicStatus">Generated bed</span>
+            </div>
+            <label>
+              Search music
+              <input id="musicSearchInput" type="text" value="cinematic tension instrumental" />
+            </label>
+            <div class="button-row">
+              <button class="primary" id="musicSearchBtn">Search music</button>
+              <button id="clearMusicBtn">Use generated bed</button>
+            </div>
+            <label>
+              Upload local music
+              <input id="musicUploadInput" type="file" accept="audio/*" />
+            </label>
+            <div id="musicResults" class="stock-results"></div>
+          </div>
+
+          <div class="panel stock-panel">
+            <div class="panel-head">
+              <h2>Voice Engines</h2>
+              <span id="ttsStatus">Windows ready</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Engine
+                <select id="ttsEngineSelect">
+                  <option value="windows">Windows voices</option>
+                  <option value="openai">OpenAI-compatible local TTS</option>
+                </select>
+              </label>
+              <label>
+                Model
+                <input id="ttsModelInput" type="text" value="kokoro" />
+              </label>
+              <label>
+                Endpoint
+                <input id="ttsEndpointInput" type="text" value="http://localhost:8000/v1/audio/speech" />
+              </label>
+              <label>
+                AI voice
+                <input id="ttsVoiceInput" type="text" value="af_heart" />
+              </label>
+            </div>
+            <div class="button-row">
+              <button id="ttsEnginesBtn">Check engines</button>
+              <button id="ttsSaveBtn">Save voice setup</button>
+            </div>
+            <div id="ttsInstallBox" class="install-box"></div>
+          </div>
+
+          <div class="panel stock-panel">
+            <div class="panel-head">
+              <h2>Preset Maker</h2>
+              <span>Scene flow</span>
+            </div>
+            <textarea id="flowInput" rows="3" spellcheck="false">hook, stock, arrowExplain, chart, timeline, summary</textarea>
+            <div class="button-row">
+              <button class="primary" id="applyFlowBtn">Apply flow</button>
+              <button id="saveFlowBtn">Save flow</button>
+            </div>
+          </div>
+
+          <div class="panel stock-panel">
+            <div class="panel-head">
+              <h2>HTML-Style Scene</h2>
+              <span>Canvas rendered</span>
+            </div>
+            <textarea id="htmlSceneInput" rows="5" spellcheck="false">{
+  "title": "Animated proof",
+  "badge": "HTML / CSS / JS style",
+  "lines": ["Hook", "Visual proof", "Clear takeaway"]
+}</textarea>
+            <div class="button-row">
+              <button class="primary" id="applyHtmlSceneBtn">Apply to beat</button>
+              <button id="previewHtmlSceneBtn">Preview scene</button>
+            </div>
+            <div class="button-row">
+              <button id="generateHtmlSceneBtn">Generate from beat</button>
+            </div>
+          </div>
+
+          <div class="panel integration-panel">
+            <div class="panel-head">
+              <h2>Codex / MCP</h2>
+              <span id="integrationStatus">Ready</span>
+            </div>
+            <div class="button-row">
+              <button class="primary" id="integrationBtn">Show setup</button>
+              <button id="copyBriefBtn">Codex brief</button>
+            </div>
+            <div id="integrationBox" class="install-box"></div>
+          </div>
+
+          <div class="panel export-panel">
+            <div class="panel-head">
+              <h2>Export</h2>
+              <span id="durationReadout">0:00</span>
+            </div>
+            <div class="button-row">
+              <button class="primary" id="recordBtn">Export WebM</button>
+              <button id="mp4Btn" disabled>Make MP4</button>
+            </div>
+            <div class="button-row">
+              <button id="sourceReportBtn">Source report</button>
+            </div>
+            <div class="progress-shell" aria-label="Export progress">
+              <div id="progressBar"></div>
+            </div>
+            <div id="downloadArea" class="download-area"></div>
+          </div>
+        </aside>
+
+        <section class="stage-zone" aria-label="Video preview">
+          <div class="stage-wrap">
+            <canvas id="stage" width="1280" height="720"></canvas>
+          </div>
+          <div class="transport">
+            <div class="meters">
+              <span id="timecode">00:00</span>
+              <span id="activeBeat">Ready</span>
+            </div>
+            <div class="range-wrap">
+              <input id="scrubber" type="range" min="0" max="1000" value="0" />
+            </div>
+          </div>
+          <div id="timeline" class="timeline" aria-label="Storyboard timeline"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

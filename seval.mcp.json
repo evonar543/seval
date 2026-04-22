@@ -1,0 +1,20 @@
+{
+  "name": "seval",
+  "description": "Local modular video studio MCP bridge.",
+  "command": "node",
+  "args": ["tools/mcp-server.mjs"],
+  "cwd": ".",
+  "tools": [
+    "seval_list_projects",
+    "seval_get_project",
+    "seval_save_project",
+    "seval_delete_project",
+    "seval_search_media",
+    "seval_search_music",
+    "seval_list_providers",
+    "seval_tts_engines",
+    "seval_integrations",
+    "seval_source_report",
+    "seval_codex_brief"
+  ]
+}
