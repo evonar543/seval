@@ -34,6 +34,7 @@ const els = {
   accent: document.querySelector("#accentInput"),
   music: document.querySelector("#musicSelect"),
   source: document.querySelector("#sourceSelect"),
+  mediaType: document.querySelector("#mediaTypeSelect"),
   pexelsKey: document.querySelector("#pexelsKeyInput"),
   pixabayKey: document.querySelector("#pixabayKeyInput"),
   dvidsKey: document.querySelector("#dvidsKeyInput"),
@@ -233,6 +234,7 @@ function serializeProject() {
       accent: els.accent.value,
       music: els.music.value,
       source: els.source.value,
+      mediaType: els.mediaType.value,
       selectedMusic: state.selectedMusic
         ? {
             id: state.selectedMusic.id,
@@ -272,6 +274,7 @@ function applyProject(project) {
   if (settings.accent) els.accent.value = settings.accent;
   if (settings.music) els.music.value = settings.music;
   if (settings.source) els.source.value = settings.source;
+  if (settings.mediaType) els.mediaType.value = settings.mediaType;
   state.selectedMusic = settings.selectedMusic || null;
   els.musicStatus.textContent = state.selectedMusic ? `Music: ${state.selectedMusic.title}` : "Generated bed";
   if (settings.sceneFlow) els.flowInput.value = settings.sceneFlow;
@@ -347,7 +350,7 @@ async function searchStock(query = els.stockSearch.value.trim()) {
   els.stockButton.disabled = true;
   els.stockButton.textContent = "Searching...";
   try {
-    const data = await searchPublicMedia(finalQuery, els.source.value, 8, providerKeySettings());
+    const data = await searchPublicMedia(finalQuery, els.source.value, 8, providerKeySettings(), els.mediaType.value);
     renderSearchResults(data.results);
     if (data.warnings?.length) els.stockStatus.textContent = data.warnings[0];
   } finally {

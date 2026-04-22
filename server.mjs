@@ -176,13 +176,14 @@ function rankResults(results, query) {
   });
 }
 
-async function searchCommons(query, limit = 8) {
+async function searchCommons(query, limit = 8, media = "video") {
   const url = new URL("https://commons.wikimedia.org/w/api.php");
+  const filetype = media === "image" ? "image" : "video";
   url.searchParams.set("action", "query");
   url.searchParams.set("format", "json");
   url.searchParams.set("generator", "search");
   url.searchParams.set("gsrnamespace", "6");
-  url.searchParams.set("gsrsearch", `filetype:video ${query}`);
+  url.searchParams.set("gsrsearch", `filetype:${filetype} ${query}`);
   url.searchParams.set("gsrlimit", String(limit * 2));
   url.searchParams.set("prop", "imageinfo");
   url.searchParams.set("iiprop", "url|mime|size|extmetadata");
@@ -193,7 +194,7 @@ async function searchCommons(query, limit = 8) {
   return pages
     .map((page) => {
       const info = page.imageinfo?.[0];
-      if (!info?.url || !String(info.mime || "").startsWith("video/")) return null;
+      if (!info?.url || !String(info.mime || "").startsWith(`${filetype}/`)) return null;
       const meta = info.extmetadata || {};
       return mediaResult({
         id: `commons:${page.pageid}`,
@@ -266,10 +267,10 @@ async function searchArchive(query, limit = 8) {
   return results.slice(0, limit);
 }
 
-async function searchNasa(query, limit = 8) {
+async function searchNasa(query, limit = 8, media = "video") {
   const searchUrl = new URL("https://images-api.nasa.gov/search");
   searchUrl.searchParams.set("q", query);
-  searchUrl.searchParams.set("media_type", "video");
+  searchUrl.searchParams.set("media_type", media === "image" ? "image" : "video");
   searchUrl.searchParams.set("page_size", String(limit));
   const data = await fetchJson(searchUrl);
   const items = data.collection?.items || [];
@@ -283,10 +284,12 @@ async function searchNasa(query, limit = 8) {
     try {
       const files = await fetchJson(collectionHref.replaceAll(" ", "%20"));
       const file =
-        files.find((href) => /~medium\.mp4$/i.test(href)) ||
-        files.find((href) => /~large\.mp4$/i.test(href)) ||
-        files.find((href) => /~small\.mp4$/i.test(href)) ||
-        files.find((href) => /\.mp4$/i.test(href));
+        media === "image"
+          ? files.find((href) => /\.(jpg|jpeg|png)$/i.test(href) && !/~thumb/i.test(href))
+          : files.find((href) => /~medium\.mp4$/i.test(href)) ||
+            files.find((href) => /~large\.mp4$/i.test(href)) ||
+            files.find((href) => /~small\.mp4$/i.test(href)) ||
+            files.find((href) => /\.mp4$/i.test(href));
       if (!file) continue;
       const nasaId = meta.nasa_id || meta.title || randomUUID();
       results.push(
@@ -300,7 +303,7 @@ async function searchNasa(query, limit = 8) {
           pageUrl: `https://images.nasa.gov/details/${encodeURIComponent(nasaId)}`,
           url: file.replace("http://", "https://").replaceAll(" ", "%20"),
           thumb: links.find((link) => link.render === "image")?.href || "",
-          mime: "video/mp4"
+          mime: media === "image" ? "image/jpeg" : "video/mp4"
         })
       );
     } catch {
@@ -514,6 +517,7 @@ async function searchNasaAudio(query, limit = 8) {
 async function handleSearch(req, res, url) {
   const query = String(url.searchParams.get("q") || "").trim();
   const source = String(url.searchParams.get("source") || "all");
+  const media = String(url.searchParams.get("media") || "video");
   const limit = Math.max(1, Math.min(12, Number(url.searchParams.get("limit") || 8)));
   const keys = providerKeys(url);
   if (!query) {
@@ -522,12 +526,20 @@ async function handleSearch(req, res, url) {
   }
 
   const tasks = [];
-  if (source === "all" || source === "commons") tasks.push(searchCommons(query, limit));
-  if (source === "all" || source === "archive") tasks.push(searchArchive(query, limit));
-  if (source === "all" || source === "nasa") tasks.push(searchNasa(query, limit));
-  if (source === "all" || source === "pexels") tasks.push(searchPexels(query, limit, keys.pexels));
-  if (source === "all" || source === "pixabay") tasks.push(searchPixabay(query, limit, keys.pixabay));
-  if (source === "all" || source === "dvids") tasks.push(searchDvids(query, limit, keys.dvids));
+  const wantsVideo = media === "video" || media === "mixed";
+  const wantsImage = media === "image" || media === "mixed";
+  if (source === "all" || source === "commons") {
+    if (wantsVideo) tasks.push(searchCommons(query, limit, "video"));
+    if (wantsImage) tasks.push(searchCommons(query, limit, "image"));
+  }
+  if (wantsVideo && (source === "all" || source === "archive")) tasks.push(searchArchive(query, limit));
+  if (source === "all" || source === "nasa") {
+    if (wantsVideo) tasks.push(searchNasa(query, limit, "video"));
+    if (wantsImage) tasks.push(searchNasa(query, limit, "image"));
+  }
+  if (wantsVideo && (source === "all" || source === "pexels")) tasks.push(searchPexels(query, limit, keys.pexels));
+  if (wantsVideo && (source === "all" || source === "pixabay")) tasks.push(searchPixabay(query, limit, keys.pixabay));
+  if (wantsVideo && (source === "all" || source === "dvids")) tasks.push(searchDvids(query, limit, keys.dvids));
   const settled = await Promise.allSettled(tasks);
   const results = settled.flatMap((item) => (item.status === "fulfilled" ? item.value : []));
   const warnings = settled

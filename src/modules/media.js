@@ -8,11 +8,12 @@ function appendProviderKeys(url, keys = {}) {
   if (keys.dvids) url.searchParams.set("dvidsKey", keys.dvids);
 }
 
-export async function searchPublicMedia(query, source = "all", limit = 8, keys = {}) {
+export async function searchPublicMedia(query, source = "all", limit = 8, keys = {}, media = "mixed") {
   const url = new URL("/api/search", window.location.origin);
   url.searchParams.set("q", query);
   url.searchParams.set("source", source);
   url.searchParams.set("limit", String(limit));
+  url.searchParams.set("media", media);
   appendProviderKeys(url, keys);
   const response = await fetch(url);
   if (!response.ok) {
@@ -44,7 +45,7 @@ export async function autoMatchBeats(beats, source, keys = {}, onProgress = () =
     const beat = beats[i];
     onProgress(i, beats.length, beat);
     try {
-      const data = await searchPublicMedia(beat.stockQuery, source, 4, keys);
+      const data = await searchPublicMedia(beat.stockQuery, source, 4, keys, "mixed");
       const result = data.results.find((item) => item.previewUrl);
       if (result) {
         beat.media = result;
@@ -62,6 +63,13 @@ export function createVideoPool(beats) {
   const pool = new Map();
   for (const beat of beats) {
     if (!beat.media?.previewUrl || pool.has(beat.media.previewUrl)) continue;
+    if (String(beat.media.mime || "").startsWith("image/")) {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.src = beat.media.previewUrl;
+      pool.set(beat.media.previewUrl, image);
+      continue;
+    }
     const video = document.createElement("video");
     video.src = beat.media.previewUrl;
     video.crossOrigin = "anonymous";
@@ -77,6 +85,7 @@ export function createVideoPool(beats) {
 export async function startVideoPool(pool) {
   const tasks = [];
   for (const video of pool.values()) {
+    if (!(video instanceof HTMLVideoElement)) continue;
     tasks.push(
       video
         .play()

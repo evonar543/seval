@@ -500,14 +500,25 @@ export function createRenderer(canvas, hooks = {}) {
     ctx.restore();
   }
 
-  function drawStock(video, beat, progress) {
-    if (video?.readyState >= 2) {
-      const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight) * (1.02 + progress * 0.04);
-      const w = video.videoWidth * scale;
-      const h = video.videoHeight * scale;
+  function drawStock(media, beat, progress) {
+    if (media instanceof HTMLImageElement && media.complete && media.naturalWidth > 0) {
+      const scale = Math.max(canvas.width / media.naturalWidth, canvas.height / media.naturalHeight) * (1.08 + progress * 0.08);
+      const w = media.naturalWidth * scale;
+      const h = media.naturalHeight * scale;
+      const x = (canvas.width - w) / 2 + Math.sin(progress * Math.PI * 2) * 24;
+      const y = (canvas.height - h) / 2 + Math.cos(progress * Math.PI * 2) * 10;
+      ctx.drawImage(media, x, y, w, h);
+      ctx.fillStyle = "rgba(8, 9, 8, 0.30)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    if (media instanceof HTMLVideoElement && media.readyState >= 2) {
+      const scale = Math.max(canvas.width / media.videoWidth, canvas.height / media.videoHeight) * (1.02 + progress * 0.04);
+      const w = media.videoWidth * scale;
+      const h = media.videoHeight * scale;
       const x = (canvas.width - w) / 2 + Math.sin(progress * Math.PI * 2) * 14;
       const y = (canvas.height - h) / 2;
-      ctx.drawImage(video, x, y, w, h);
+      ctx.drawImage(media, x, y, w, h);
       ctx.fillStyle = "rgba(8, 9, 8, 0.22)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       return;

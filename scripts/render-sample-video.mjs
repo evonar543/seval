@@ -16,6 +16,7 @@ const topics = {
     scenes: [
       {
         kind: "hook",
+        imageQuery: "chicken nuggets",
         title: "I will be talking about this:",
         body: "Chicken nuggets.",
         narration:
@@ -23,6 +24,7 @@ const topics = {
       },
       {
         kind: "steps",
+        imageQuery: "chicken nuggets sauce",
         title: "The Basic Idea",
         body: "Chicken, coating, heat, crunch.",
         narration:
@@ -30,6 +32,7 @@ const topics = {
       },
       {
         kind: "arrows",
+        imageQuery: "fried chicken nuggets",
         title: "Why They Crunch",
         body: "Steam pushes out. The coating dries. The outside gets crisp.",
         narration:
@@ -37,6 +40,7 @@ const topics = {
       },
       {
         kind: "chart",
+        imageQuery: "chicken nuggets meal",
         title: "Why People Like Them",
         body: "Fast, salty, crunchy, dip-friendly.",
         narration:
@@ -44,6 +48,7 @@ const topics = {
       },
       {
         kind: "summary",
+        imageQuery: "chicken nuggets",
         title: "The Takeaway",
         body: "A tiny food with a full story: texture, timing, and sauce.",
         narration:
@@ -89,6 +94,56 @@ function colorFor(kind) {
     chart: "0x0d0f12",
     summary: "0x080908"
   }[kind] || "0x080908";
+}
+
+function extensionForMime(mime = "") {
+  if (mime.includes("png")) return "png";
+  if (mime.includes("webp")) return "webp";
+  return "jpg";
+}
+
+async function searchCommonsImage(query) {
+  const url = new URL("https://commons.wikimedia.org/w/api.php");
+  url.searchParams.set("action", "query");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("generator", "search");
+  url.searchParams.set("gsrnamespace", "6");
+  url.searchParams.set("gsrsearch", `filetype:image ${query}`);
+  url.searchParams.set("gsrlimit", "8");
+  url.searchParams.set("prop", "imageinfo");
+  url.searchParams.set("iiprop", "url|mime|extmetadata");
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "Seval sample renderer",
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) return null;
+  const data = await response.json();
+  const pages = Object.values(data.query?.pages || {});
+  for (const page of pages) {
+    const info = page.imageinfo?.[0];
+    if (!info?.url || !String(info.mime || "").startsWith("image/")) continue;
+    return {
+      url: info.url,
+      title: String(page.title || "").replace(/^File:/, ""),
+      mime: info.mime,
+      credit: info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, "") || "Wikimedia Commons contributor",
+      license: info.extmetadata?.LicenseShortName?.value || "Commons license",
+      pageUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(String(page.title || "").replaceAll(" ", "_"))}`
+    };
+  }
+  return null;
+}
+
+async function downloadImage(image, sceneDir, index) {
+  if (!image?.url) return null;
+  const response = await fetch(image.url, { headers: { "User-Agent": "Seval sample renderer" } });
+  if (!response.ok) return null;
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const outPath = join(sceneDir, `scene-${index}-image.${extensionForMime(image.mime)}`);
+  await writeFile(outPath, buffer);
+  return outPath;
 }
 
 async function duration(path) {
@@ -237,23 +292,38 @@ async function makeMusicBed(sceneDir, durationSeconds) {
   return outPath;
 }
 
-async function renderScene(scene, sceneDir, index, voice) {
+async function renderScene(scene, sceneDir, index, voice, imagePath = null) {
   const wavPath = await speak(scene, sceneDir, index, voice);
   const dur = await duration(wavPath);
   const { titlePath, bodyPath } = await sceneTextFiles(scene, sceneDir, index);
   const outPath = join(sceneDir, `scene-${index}.mp4`);
   const filter = visualFilters(scene, titlePath, bodyPath);
 
-  await run("ffmpeg", [
+  const args = [
     "-y",
     "-f",
     "lavfi",
     "-i",
-    `color=c=${colorFor(scene.kind)}:s=1280x720:r=30:d=${dur.toFixed(3)}`,
-    "-i",
-    wavPath,
-    "-vf",
-    filter,
+    `color=c=${colorFor(scene.kind)}:s=1280x720:r=30:d=${dur.toFixed(3)}`
+  ];
+  if (imagePath) {
+    args.push("-loop", "1", "-i", imagePath);
+  }
+  args.push("-i", wavPath);
+  if (imagePath) {
+    const audioIndex = 2;
+    args.push(
+      "-filter_complex",
+      `[1:v]scale=1480:-1,crop=1280:720:(iw-1280)/2:(ih-720)/2,format=rgba,colorchannelmixer=aa=0.58[photo];[0:v][photo]overlay=x='-28+28*sin(t*0.5)':y='-10+10*cos(t*0.7)',${filter}[v]`,
+      "-map",
+      "[v]",
+      "-map",
+      `${audioIndex}:a`
+    );
+  } else {
+    args.push("-vf", filter);
+  }
+  args.push(
     "-shortest",
     "-c:v",
     "libx264",
@@ -266,7 +336,8 @@ async function renderScene(scene, sceneDir, index, voice) {
     "-b:a",
     "160k",
     outPath
-  ]);
+  );
+  await run("ffmpeg", args);
   return outPath;
 }
 
@@ -334,8 +405,22 @@ async function main() {
   const sceneDir = join(outRoot, `${topic.slug}-${randomUUID().slice(0, 8)}`);
   await mkdir(sceneDir, { recursive: true });
   const scenePaths = [];
+  const sourceLines = [];
   for (let i = 0; i < topic.scenes.length; i += 1) {
-    scenePaths.push(await renderScene(topic.scenes[i], sceneDir, i + 1, topic.voice));
+    const scene = topic.scenes[i];
+    const image = await searchCommonsImage(scene.imageQuery || topic.name).catch(() => null);
+    const imagePath = await downloadImage(image, sceneDir, i + 1).catch(() => null);
+    if (image) {
+      sourceLines.push(
+        `${i + 1}. ${image.title}`,
+        `   Source: Wikimedia Commons`,
+        `   Credit: ${image.credit}`,
+        `   License: ${image.license}`,
+        `   URL: ${image.pageUrl}`,
+        ""
+      );
+    }
+    scenePaths.push(await renderScene(scene, sceneDir, i + 1, topic.voice, imagePath));
   }
 
   const finalPath = join(outRoot, topic.output);
@@ -346,10 +431,14 @@ async function main() {
       "Seval sample source report",
       `Video: ${topic.output}`,
       "Visuals: Native Seval FFmpeg scene renderer",
+      "Images: Public Wikimedia Commons images searched per scene",
       "Narration: Windows local text-to-speech",
       "Music: Original generated Seval sine-layer music bed",
       "Animation: FFmpeg expressions for moving panels, kinetic text, chart growth, arrows, and background sweeps",
-      "Topic: Chicken nuggets"
+      "Topic: Chicken nuggets",
+      "",
+      "Image sources:",
+      ...sourceLines
     ].join("\n"),
     "utf8"
   );
