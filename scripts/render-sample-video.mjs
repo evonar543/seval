@@ -24,7 +24,7 @@ const topics = {
       },
       {
         kind: "steps",
-        imageQuery: "chicken nuggets sauce",
+        imageQuery: "chicken nuggets plate close up",
         title: "The Basic Idea",
         body: "Chicken, coating, heat, crunch.",
         narration:
@@ -40,7 +40,7 @@ const topics = {
       },
       {
         kind: "chart",
-        imageQuery: "chicken nuggets meal",
+        imageQuery: "chicken nuggets basket meal",
         title: "Why People Like Them",
         body: "Fast, salty, crunchy, dip-friendly.",
         narration:
@@ -103,13 +103,26 @@ function extensionForMime(mime = "") {
 }
 
 async function searchCommonsImage(query) {
+  let candidates = await commonsImageCandidates(query);
+  if (!candidates.length && query.toLowerCase() !== "chicken nuggets") {
+    candidates = await commonsImageCandidates("chicken nuggets");
+  }
+  return candidates
+    .map((candidate, index) => ({
+      candidate,
+      score: scoreImageCandidate(candidate, query) - index * 0.1
+    }))
+    .sort((a, b) => b.score - a.score)[0]?.candidate || null;
+}
+
+async function commonsImageCandidates(query) {
   const url = new URL("https://commons.wikimedia.org/w/api.php");
   url.searchParams.set("action", "query");
   url.searchParams.set("format", "json");
   url.searchParams.set("generator", "search");
   url.searchParams.set("gsrnamespace", "6");
   url.searchParams.set("gsrsearch", `filetype:image ${query}`);
-  url.searchParams.set("gsrlimit", "8");
+  url.searchParams.set("gsrlimit", "24");
   url.searchParams.set("prop", "imageinfo");
   url.searchParams.set("iiprop", "url|mime|extmetadata");
   const response = await fetch(url, {
@@ -118,22 +131,62 @@ async function searchCommonsImage(query) {
       Accept: "application/json"
     }
   });
-  if (!response.ok) return null;
+  if (!response.ok) return [];
   const data = await response.json();
   const pages = Object.values(data.query?.pages || {});
+  const candidates = [];
   for (const page of pages) {
     const info = page.imageinfo?.[0];
     if (!info?.url || !String(info.mime || "").startsWith("image/")) continue;
-    return {
+    candidates.push({
       url: info.url,
       title: String(page.title || "").replace(/^File:/, ""),
       mime: info.mime,
       credit: info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, "") || "Wikimedia Commons contributor",
       license: info.extmetadata?.LicenseShortName?.value || "Commons license",
-      pageUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(String(page.title || "").replaceAll(" ", "_"))}`
-    };
+      pageUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(String(page.title || "").replaceAll(" ", "_"))}`,
+      description: info.extmetadata?.ImageDescription?.value?.replace(/<[^>]*>/g, " ") || ""
+    });
   }
-  return null;
+  return candidates;
+}
+
+function scoreImageCandidate(candidate, query) {
+  const haystack = `${candidate.title} ${candidate.description}`.toLowerCase();
+  let score = 0;
+  for (const word of query.toLowerCase().split(/\W+/).filter(Boolean)) {
+    if (haystack.includes(word)) score += 3;
+  }
+  for (const [word, value] of [
+    ["nugget", 14],
+    ["chicken", 10],
+    ["fried", 5],
+    ["food", 5],
+    ["plate", 5],
+    ["basket", 4],
+    ["meal", 4],
+    ["dish", 4],
+    ["close", 2],
+    ["crispy", 2]
+  ]) {
+    if (haystack.includes(word)) score += value;
+  }
+  for (const [word, value] of [
+    ["sauce", 10],
+    ["packet", 12],
+    ["package", 12],
+    ["label", 10],
+    ["logo", 18],
+    ["menu", 8],
+    ["sign", 8],
+    ["mcdonald", 8],
+    ["restaurant", 6],
+    ["nutrition", 10],
+    ["barbecue", 4]
+  ]) {
+    if (haystack.includes(word)) score -= value;
+  }
+  return score;
 }
 
 async function downloadImage(image, sceneDir, index) {
@@ -191,15 +244,17 @@ async function sceneTextFiles(scene, sceneDir, index) {
 
 function visualFilters(scene, titlePath, bodyPath) {
   const titleX = "82-34*lt(t\\,0.55)*(1-t/0.55)";
-  const bodyY = "500+28*lt(t\\,0.55)*(1-t/0.55)";
+  const bodyY = "534+22*lt(t\\,0.55)*(1-t/0.55)";
   const title = `drawtext=fontfile='${font}':textfile='${ffPath(titlePath)}':fontcolor=white:fontsize=58:x='${titleX}':y=88:alpha='min(1,t/0.45)'`;
   const body = `drawtext=fontfile='${font}':textfile='${ffPath(bodyPath)}':fontcolor=white:fontsize=42:x=82:y='${bodyY}':line_spacing=14:alpha='min(1,t/0.55)'`;
   const brand = `drawtext=fontfile='${font}':text='SEVAL EXPLAINER':fontcolor=0xe5b95b:fontsize=24:x=82:y=48:alpha='0.72+0.2*sin(t*3)'`;
-  const captionBox = "drawbox=x=64:y=478:w=1152:h=166:color=black@0.56:t=fill";
+  const dimmer = "drawbox=x=0:y=0:w=1280:h=720:color=black@0.22:t=fill";
+  const captionBox = "drawbox=x=74:y=510:w=1132:h=116:color=black@0.62:t=fill";
   const motionGrid = [
-    "drawgrid=width=80:height=80:thickness=1:color=white@0.055",
-    "drawbox=x='-220+mod(t*90\\,1500)':y=0:w=160:h=720:color=white@0.035:t=fill",
-    "drawbox=x=0:y='mod(t*44\\,760)-40':w=1280:h=3:color=0xe5b95b@0.24:t=fill"
+    dimmer,
+    "drawgrid=width=80:height=80:thickness=1:color=white@0.035",
+    "drawbox=x='-220+mod(t*70\\,1500)':y=0:w=150:h=720:color=white@0.025:t=fill",
+    "drawbox=x=0:y='mod(t*34\\,760)-40':w=1280:h=3:color=0xe5b95b@0.18:t=fill"
   ];
   const base = [brand, title, captionBox, body];
 
@@ -208,8 +263,8 @@ function visualFilters(scene, titlePath, bodyPath) {
       ...motionGrid,
       "drawbox=x=0:y=0:w=1280:h=12:color=0x8abd5f:t=fill",
       "drawbox=x=140:y=250:w='1000*min(1,t/1.1)':h=6:color=0xe5b95b@0.8:t=fill",
-      "drawbox=x='590+sin(t*2.7)*28':y=310:w=100:h=100:color=0xe5b95b@0.24:t=fill",
-      "drawbox=x='630+cos(t*2.1)*32':y=338:w=165:h=48:color=0x8abd5f@0.20:t=fill",
+      "drawbox=x='590+sin(t*2.7)*18':y=310:w=100:h=100:color=0xe5b95b@0.18:t=fill",
+      "drawbox=x='630+cos(t*2.1)*20':y=338:w=165:h=48:color=0x8abd5f@0.16:t=fill",
       ...base
     ].join(",");
   }
@@ -218,14 +273,14 @@ function visualFilters(scene, titlePath, bodyPath) {
     return [
       ...motionGrid,
       ...base,
-      "drawbox=x='100-70*lt(t\\,0.6)*(1-t/0.6)':y=230:w=250:h=140:color=0x8abd5f@0.42:t=fill",
-      "drawbox=x='395-70*lt(t\\,0.85)*(1-t/0.85)':y=230:w=250:h=140:color=0xe5b95b@0.42:t=fill",
-      "drawbox=x='690-70*lt(t\\,1.1)*(1-t/1.1)':y=230:w=250:h=140:color=0x64a6d9@0.42:t=fill",
-      "drawbox=x='985-70*lt(t\\,1.35)*(1-t/1.35)':y=230:w=180:h=140:color=0xd65a4a@0.42:t=fill",
-      `drawtext=fontfile='${font}':text='1 Chicken':fontcolor=white:fontsize=30:x=132:y='286+sin(t*3)*3'`,
-      `drawtext=fontfile='${font}':text='2 Coating':fontcolor=white:fontsize=30:x=428:y='286+sin(t*3+1)*3'`,
-      `drawtext=fontfile='${font}':text='3 Heat':fontcolor=white:fontsize=30:x=734:y='286+sin(t*3+2)*3'`,
-      `drawtext=fontfile='${font}':text='4 Crunch':fontcolor=white:fontsize=30:x=1010:y='286+sin(t*3+3)*3'`
+      "drawbox=x='100-70*lt(t\\,0.6)*(1-t/0.6)':y=236:w=250:h=116:color=0x8abd5f@0.30:t=fill",
+      "drawbox=x='395-70*lt(t\\,0.85)*(1-t/0.85)':y=236:w=250:h=116:color=0xe5b95b@0.30:t=fill",
+      "drawbox=x='690-70*lt(t\\,1.1)*(1-t/1.1)':y=236:w=250:h=116:color=0x64a6d9@0.30:t=fill",
+      "drawbox=x='985-70*lt(t\\,1.35)*(1-t/1.35)':y=236:w=180:h=116:color=0xd65a4a@0.30:t=fill",
+      `drawtext=fontfile='${font}':text='1 Chicken':fontcolor=white:fontsize=29:x=132:y='286+sin(t*3)*3'`,
+      `drawtext=fontfile='${font}':text='2 Coat':fontcolor=white:fontsize=29:x=430:y='286+sin(t*3+1)*3'`,
+      `drawtext=fontfile='${font}':text='3 Heat':fontcolor=white:fontsize=29:x=734:y='286+sin(t*3+2)*3'`,
+      `drawtext=fontfile='${font}':text='4 Crunch':fontcolor=white:fontsize=29:x=1010:y='286+sin(t*3+3)*3'`
     ].join(",");
   }
 
@@ -271,25 +326,106 @@ function visualFilters(scene, titlePath, bodyPath) {
 
 async function makeMusicBed(sceneDir, durationSeconds) {
   const outPath = join(sceneDir, "music-bed.wav");
-  await run("ffmpeg", [
-    "-y",
-    "-f",
-    "lavfi",
-    "-i",
-    `sine=frequency=82:duration=${durationSeconds.toFixed(3)}:sample_rate=44100`,
-    "-f",
-    "lavfi",
-    "-i",
-    `sine=frequency=164:duration=${durationSeconds.toFixed(3)}:sample_rate=44100`,
-    "-f",
-    "lavfi",
-    "-i",
-    `sine=frequency=246:duration=${durationSeconds.toFixed(3)}:sample_rate=44100`,
-    "-filter_complex",
-    "[0:a]volume=0.12,afade=t=in:st=0:d=1.2,afade=t=out:st=0:d=1.2[a0];[1:a]volume=0.045,atrim=0:999,afade=t=in:st=0:d=1.4[a1];[2:a]volume=0.025,afade=t=in:st=0:d=2[a2];[a0][a1][a2]amix=inputs=3:duration=longest,alimiter=limit=0.45",
-    outPath
-  ]);
+  await writeFile(outPath, renderMusicWave(durationSeconds));
   return outPath;
+}
+
+function renderMusicWave(durationSeconds) {
+  const sampleRate = 44100;
+  const channels = 2;
+  const totalSamples = Math.ceil(durationSeconds * sampleRate);
+  const data = Buffer.alloc(totalSamples * channels * 2);
+  const chords = [
+    [220, 277.18, 329.63],
+    [196, 246.94, 293.66],
+    [164.81, 220, 261.63],
+    [174.61, 220, 261.63]
+  ];
+  const melody = [440, 493.88, 554.37, 659.25, 554.37, 493.88, 440, 329.63];
+  const bpm = 104;
+  const beat = 60 / bpm;
+
+  for (let i = 0; i < totalSamples; i += 1) {
+    const t = i / sampleRate;
+    const bar = Math.floor(t / (beat * 4));
+    const beatInBar = (t / beat) % 4;
+    const chord = chords[bar % chords.length];
+    const step = Math.floor(t / (beat / 2)) % melody.length;
+    const localStep = (t % (beat / 2)) / (beat / 2);
+
+    let sample = 0;
+    sample += softTriangle(chord[0] / 2, t) * 0.17;
+    sample += softTriangle(chord[1], t) * 0.055;
+    sample += softTriangle(chord[2], t) * 0.045;
+    sample += Math.sin(2 * Math.PI * melody[step] * t) * pluck(localStep) * 0.13;
+    sample += kick(beatInBar) * 0.22;
+    sample += snare(beatInBar) * 0.075;
+    sample += hat(t, beat) * 0.035;
+
+    const fadeIn = Math.min(1, t / 1.5);
+    const fadeOut = Math.min(1, Math.max(0, (durationSeconds - t) / 2));
+    const mixed = Math.tanh(sample * 1.65) * fadeIn * fadeOut * 0.62;
+    const pan = Math.sin(t * 0.9) * 0.08;
+    writeInt16(data, i * channels * 2, mixed * (1 - pan));
+    writeInt16(data, i * channels * 2 + 2, mixed * (1 + pan));
+  }
+
+  return pcm16Wave(data, sampleRate, channels);
+}
+
+function softTriangle(freq, t) {
+  const phase = (freq * t) % 1;
+  return 2 * Math.abs(2 * phase - 1) - 1;
+}
+
+function pluck(position) {
+  return Math.exp(-position * 5.5) * (position < 0.92 ? 1 : 0);
+}
+
+function kick(beatInBar) {
+  const position = beatInBar % 1;
+  if (position > 0.18) return 0;
+  return Math.sin(2 * Math.PI * (56 + 58 * (1 - position)) * position) * Math.exp(-position * 18);
+}
+
+function snare(beatInBar) {
+  const distance = Math.min(Math.abs(beatInBar - 1), Math.abs(beatInBar - 3));
+  if (distance > 0.13) return 0;
+  const seed = Math.sin((beatInBar + 8.13) * 1342.22) * 43758.5453;
+  const noise = (seed - Math.floor(seed)) * 2 - 1;
+  return noise * Math.exp(-distance * 18);
+}
+
+function hat(t, beat) {
+  const position = (t % (beat / 2)) / (beat / 2);
+  if (position > 0.28) return 0;
+  const seed = Math.sin((t + 0.31) * 24592.23) * 13758.5453;
+  const noise = (seed - Math.floor(seed)) * 2 - 1;
+  return noise * Math.exp(-position * 16);
+}
+
+function writeInt16(buffer, offset, value) {
+  const clipped = Math.max(-1, Math.min(1, value));
+  buffer.writeInt16LE(Math.round(clipped * 32767), offset);
+}
+
+function pcm16Wave(data, sampleRate, channels) {
+  const header = Buffer.alloc(44);
+  const byteRate = sampleRate * channels * 2;
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + data.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(channels * 2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(data.length, 40);
+  return Buffer.concat([header, data]);
 }
 
 async function renderScene(scene, sceneDir, index, voice, imagePath = null) {
@@ -314,7 +450,7 @@ async function renderScene(scene, sceneDir, index, voice, imagePath = null) {
     const audioIndex = 2;
     args.push(
       "-filter_complex",
-      `[1:v]scale=1480:-1,crop=1280:720:(iw-1280)/2:(ih-720)/2,format=rgba,colorchannelmixer=aa=0.58[photo];[0:v][photo]overlay=x='-28+28*sin(t*0.5)':y='-10+10*cos(t*0.7)',${filter}[v]`,
+      `[1:v]scale=1380:780:force_original_aspect_ratio=increase,crop=1280:720:(iw-1280)/2+18*sin(t*0.35):(ih-720)/2+10*cos(t*0.45),format=rgba,colorchannelmixer=aa=0.86[photo];[0:v][photo]overlay=x=0:y=0,${filter}[v]`,
       "-map",
       "[v]",
       "-map",
@@ -378,7 +514,7 @@ async function concatScenes(scenePaths, sceneDir, outputPath) {
     "-i",
     musicPath,
     "-filter_complex",
-    "[0:a]volume=1.0[a0];[1:a]volume=0.32[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0,alimiter=limit=0.95[aout]",
+    "[0:a]volume=1.12[a0];[1:a]volume=0.58[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0,alimiter=limit=0.98[aout]",
     "-map",
     "0:v",
     "-map",
@@ -433,7 +569,7 @@ async function main() {
       "Visuals: Native Seval FFmpeg scene renderer",
       "Images: Public Wikimedia Commons images searched per scene",
       "Narration: Windows local text-to-speech",
-      "Music: Original generated Seval sine-layer music bed",
+      "Music: Original generated Seval WAV music bed with melody, rhythm, chords, and fades",
       "Animation: FFmpeg expressions for moving panels, kinetic text, chart growth, arrows, and background sweeps",
       "Topic: Chicken nuggets",
       "",
