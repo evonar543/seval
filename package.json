@@ -8,9 +8,14 @@
     "start": "node server.mjs",
     "dev": "node server.mjs",
     "mcp": "node tools/mcp-server.mjs",
-    "sample:chicken-nuggets": "node scripts/render-sample-video.mjs chicken-nuggets"
+    "sample:chicken-nuggets": "node scripts/render-sample-video.mjs chicken-nuggets",
+    "sample:pencils": "node scripts/render-sample-video.mjs pencils",
+    "render:simple": "node scripts/render-simple-video.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
   }
 }

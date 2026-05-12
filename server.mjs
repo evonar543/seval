@@ -644,7 +644,7 @@ async function handleProviders(_req, res) {
 function integrationManifest() {
   return {
     name: "Seval",
-    version: "0.2.0",
+    version: "0.3.0",
     description: "Local modular video studio for scripted explainer videos.",
     server: `http://localhost:${port}`,
     mcp: {
@@ -991,6 +991,27 @@ async function handleConvert(req, res) {
   }
 }
 
+async function handleSaveExport(req, res) {
+  const input = await readBody(req);
+  if (!input.length) {
+    json(res, 400, { error: "An MP4 payload is required." });
+    return;
+  }
+  const rawName = String(req.headers["x-filename"] || "seval-export.mp4");
+  const safeName = rawName.replace(/[^a-z0-9._-]+/gi, "-").replace(/-+/g, "-");
+  const fileName = safeName.toLowerCase().endsWith(".mp4") ? safeName : `${safeName}.mp4`;
+  const renderRoot = join(root, ".seval", "renders");
+  await mkdir(renderRoot, { recursive: true });
+  const outPath = join(renderRoot, fileName);
+  await writeFile(outPath, input);
+  json(res, 200, {
+    ok: true,
+    filename: fileName,
+    path: outPath,
+    size: input.length
+  });
+}
+
 async function handleHealth(_req, res) {
   const checks = {};
   for (const command of ["node", "ffmpeg"]) {
@@ -1060,6 +1081,10 @@ async function route(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/api/convert") {
       await handleConvert(req, res);
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/save-export") {
+      await handleSaveExport(req, res);
       return;
     }
 

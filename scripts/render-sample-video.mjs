@@ -55,6 +55,54 @@ const topics = {
           "So the takeaway is simple: chicken nuggets are not just random bites. They are a tiny food story about texture, timing, seasoning, and sauce."
       }
     ]
+  },
+  pencils: {
+    slug: "pencils",
+    name: "Pencils",
+    output: "seval-pencils.mp4",
+    voice: "Microsoft David Desktop",
+    scenes: [
+      {
+        kind: "hook",
+        imageQuery: "pencil close up",
+        title: "I will be talking about this:",
+        body: "Pencils.",
+        narration:
+          "I will be talking about this: pencils. They look basic, but there is a neat little system hiding in a piece of wood, graphite, and pressure."
+      },
+      {
+        kind: "steps",
+        imageQuery: "wood pencil writing",
+        title: "The Basic Idea",
+        body: "Graphite, wood, pressure, line.",
+        narration:
+          "A pencil works by dragging a graphite core across paper. Pressure and friction leave a thin layer behind, and that layer becomes the line you see."
+      },
+      {
+        kind: "arrows",
+        imageQuery: "pencil tip macro",
+        title: "Why It Leaves Marks",
+        body: "Tip rubs. Graphite sheds. Paper holds the trace.",
+        narration:
+          "At the tip, tiny pieces of graphite break away and catch on the paper fibers. That is why a smooth motion can still produce a visible mark."
+      },
+      {
+        kind: "chart",
+        imageQuery: "pencil drawing sketch",
+        title: "Why People Still Use Them",
+        body: "Cheap, precise, erasable, portable.",
+        narration:
+          "People still use pencils because they are cheap, precise, erasable, and easy to carry. Few tools are that flexible for writing, sketching, and marking ideas fast."
+      },
+      {
+        kind: "summary",
+        imageQuery: "yellow pencil desk",
+        title: "The Takeaway",
+        body: "A simple tool built on friction, control, and revision.",
+        narration:
+          "So the takeaway is simple: a pencil is not just a stick for writing. It is a very efficient tool for friction, control, and easy revision."
+      }
+    ]
   }
 };
 
@@ -158,9 +206,6 @@ function scoreImageCandidate(candidate, query) {
     if (haystack.includes(word)) score += 3;
   }
   for (const [word, value] of [
-    ["nugget", 14],
-    ["chicken", 10],
-    ["fried", 5],
     ["food", 5],
     ["plate", 5],
     ["basket", 4],
@@ -172,7 +217,6 @@ function scoreImageCandidate(candidate, query) {
     if (haystack.includes(word)) score += value;
   }
   for (const [word, value] of [
-    ["sauce", 10],
     ["packet", 12],
     ["package", 12],
     ["label", 10],
@@ -571,7 +615,7 @@ async function main() {
       "Narration: Windows local text-to-speech",
       "Music: Original generated Seval WAV music bed with melody, rhythm, chords, and fades",
       "Animation: FFmpeg expressions for moving panels, kinetic text, chart growth, arrows, and background sweeps",
-      "Topic: Chicken nuggets",
+      `Topic: ${topic.name}`,
       "",
       "Image sources:",
       ...sourceLines

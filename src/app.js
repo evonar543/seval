@@ -875,6 +875,7 @@ async function exportWebm() {
   els.record.disabled = false;
   els.mp4.disabled = false;
   els.record.textContent = "Export WebM";
+  return blob;
 }
 
 function addDownload(blob, filename, label) {
@@ -937,6 +938,7 @@ async function makeMp4() {
   addDownload(mp4, state.lastWebmName.replace(/\.webm$/, ".mp4"), "Download MP4");
   els.mp4.disabled = false;
   els.mp4.textContent = "Make MP4";
+  return mp4;
 }
 
 async function checkHealth() {
@@ -947,6 +949,60 @@ async function checkHealth() {
   } catch {
     els.systemStatus.textContent = "Local server is not responding";
   }
+}
+
+async function renderProjectForAutomation(options = {}) {
+  if (options.projectName) els.projectName.value = options.projectName;
+  if (options.prompt !== undefined) els.prompt.value = options.prompt;
+  if (options.script !== undefined) {
+    els.script.value = options.script;
+  } else if (options.prompt !== undefined) {
+    els.script.value = "";
+  }
+  if (options.preset) els.preset.value = options.preset;
+  if (options.style) els.style.value = options.style;
+  if (options.length) els.length.value = options.length;
+  if (options.pace) els.pace.value = options.pace;
+  if (options.caption) els.caption.value = options.caption;
+  if (options.accent) els.accent.value = options.accent;
+  if (options.mediaType) els.mediaType.value = options.mediaType;
+  if (options.source) els.source.value = options.source;
+  if (options.voice) els.voice.value = options.voice;
+  if (options.music) els.music.value = options.music;
+
+  generate();
+
+  if (options.autoDirect) {
+    runAutoDirector();
+  }
+  if (options.autoStock) {
+    await autoStock();
+  }
+
+  const webm = await exportWebm();
+  const mp4 = await makeMp4();
+  const filename = options.filename || `seval-${Date.now()}.mp4`;
+  const saveResponse = await fetch("/api/save-export", {
+    method: "POST",
+    headers: {
+      "Content-Type": "video/mp4",
+      "X-Filename": filename
+    },
+    body: mp4
+  });
+  const saved = await saveResponse.json();
+  if (!saveResponse.ok) {
+    throw new Error(saved.error || "Could not save MP4 export.");
+  }
+
+  return {
+    saved,
+    project: serializeProject(),
+    beats: state.beats.length,
+    duration: totalDuration(state.beats),
+    webmSize: webm.size,
+    mp4Size: mp4.size
+  };
 }
 
 els.generate.addEventListener("click", generate);
@@ -1120,3 +1176,19 @@ const savedFlow = localStorage.getItem("seval.sceneFlow");
 if (savedFlow) els.flowInput.value = savedFlow;
 await refreshProjects().catch(() => {});
 generate();
+
+window.sevalApp = {
+  state,
+  els,
+  generate,
+  saveProject,
+  loadProject,
+  deleteProject,
+  autoStock,
+  runAutoDirector,
+  exportWebm,
+  makeMp4,
+  serializeProject,
+  applyProject,
+  renderProjectForAutomation
+};
