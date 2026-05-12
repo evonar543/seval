@@ -10,7 +10,7 @@ import {
 } from "./modules/media.js";
 import { createRenderer } from "./modules/renderer.js";
 import { composeScript, inferPreset, visualTypes } from "./modules/scriptTemplates.js";
-import { activeBeatAt, buildBeats, formatTime, normalizeTiming, totalDuration } from "./modules/storyboard.js";
+import { activeBeatAt, buildBeats, formatTime, normalizeTiming, refreshBeat, totalDuration } from "./modules/storyboard.js";
 
 const canvas = document.querySelector("#stage");
 
@@ -93,7 +93,7 @@ const els = {
 };
 
 const samplePrompt =
-  "Explain why AI agents are changing how people build software, using a strong hook, stock footage, charts, code-style visuals, and clean captions.";
+  "Explain why chicken nuggets are satisfying, using public footage, close-up food images, crisp step graphics, and clean captions.";
 
 const state = {
   beats: [],
@@ -213,7 +213,7 @@ function generate() {
 function assignMediaToBeat(beat, media) {
   if (!beat) return;
   beat.media = media;
-  beat.visual = "stock";
+  if (beat.visual === "auto") beat.visual = "hero";
   rebuildVideoPool();
   renderTimeline();
   draw(state.currentTime);
@@ -286,6 +286,14 @@ function applyProject(project) {
     style: els.style.value,
     length: els.length.value,
     preset: els.preset.value
+  });
+  state.beats.forEach((beat, index) => {
+    beat.index = index;
+    refreshBeat(beat, {
+      style: els.style.value,
+      preset: settings.preset || els.preset.value,
+      rebuildQuery: !beat.stockQuery
+    });
   });
   state.selectedBeatId = state.beats[0]?.id || null;
   state.currentTime = 0;
@@ -518,7 +526,14 @@ function renderTimeline() {
     textarea.value = beat.text;
     textarea.addEventListener("input", () => {
       beat.text = textarea.value.trim();
+      refreshBeat(beat, {
+        style: els.style.value,
+        preset: els.preset.value === "auto" ? inferPreset(els.prompt.value) : els.preset.value,
+        rebuildQuery: true
+      });
       syncScriptFromBeats();
+      mediaTitle.textContent = beat.media ? `${beat.media.source}: ${beat.media.title}` : "No media assigned yet";
+      query.value = beat.stockQuery;
       draw(state.currentTime);
     });
 
@@ -529,12 +544,16 @@ function renderTimeline() {
     select.value = beat.visual;
     select.addEventListener("change", () => {
       beat.visual = select.value;
+      refreshBeat(beat, {
+        style: els.style.value,
+        preset: els.preset.value === "auto" ? inferPreset(els.prompt.value) : els.preset.value
+      });
       draw(state.currentTime);
     });
 
     const mediaTitle = document.createElement("div");
     mediaTitle.className = "media-title";
-    mediaTitle.textContent = beat.media ? `${beat.media.source}: ${beat.media.title}` : "No public clip assigned yet";
+    mediaTitle.textContent = beat.media ? `${beat.media.source}: ${beat.media.title}` : "No media assigned yet";
 
     const tools = document.createElement("div");
     tools.className = "beat-tools";
@@ -560,7 +579,7 @@ function renderTimeline() {
     clear.addEventListener("click", (event) => {
       event.stopPropagation();
       beat.media = null;
-      beat.visual = "map";
+      if (beat.visual === "hero") beat.visual = "focus";
       rebuildVideoPool();
       renderTimeline();
       draw(state.currentTime);
@@ -589,6 +608,10 @@ function applySceneFlow() {
   }
   state.beats.forEach((beat, index) => {
     beat.visual = flow[index % flow.length];
+    refreshBeat(beat, {
+      style: els.style.value,
+      preset: els.preset.value === "auto" ? inferPreset(els.prompt.value) : els.preset.value
+    });
   });
   renderTimeline();
   draw(state.currentTime);
@@ -615,6 +638,10 @@ function applyHtmlSceneToBeat() {
   if (!beat) return;
   beat.visual = "html";
   beat.htmlScene = readHtmlScene();
+  refreshBeat(beat, {
+    style: els.style.value,
+    preset: els.preset.value === "auto" ? inferPreset(els.prompt.value) : els.preset.value
+  });
   renderTimeline();
   draw(beat.start);
 }

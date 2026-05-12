@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
@@ -36,12 +36,30 @@ const mime = new Map([
   [".mp4", "video/mp4"]
 ]);
 
+const userLocal = process.env.LOCALAPPDATA || "";
+const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+const commandHints = {
+  ffmpeg: [
+    "ffmpeg",
+    join(programFiles, "Jellyfin", "Server", "ffmpeg.exe"),
+    join(userLocal, "Microsoft", "WinGet", "Links", "ffmpeg.exe"),
+    join(userLocal, "Microsoft", "WinGet", "Packages")
+  ],
+  ffprobe: [
+    "ffprobe",
+    join(programFiles, "Jellyfin", "Server", "ffprobe.exe"),
+    join(userLocal, "Microsoft", "WinGet", "Links", "ffprobe.exe"),
+    join(userLocal, "Microsoft", "WinGet", "Packages")
+  ]
+};
+
 await mkdir(tmpRoot, { recursive: true });
 await mkdir(projectRoot, { recursive: true });
 
 function run(command, args, options = {}) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(command, args, {
+    const target = resolveCommand(command);
+    const child = spawn(target, args, {
       cwd: root,
       windowsHide: true,
       ...options
@@ -59,10 +77,52 @@ function run(command, args, options = {}) {
       if (code === 0) {
         resolveRun({ stdout, stderr });
       } else {
-        rejectRun(new Error(`${command} exited ${code}\n${stderr || stdout}`));
+        rejectRun(new Error(`${target} exited ${code}\n${stderr || stdout}`));
       }
     });
   });
+}
+
+function resolveCommand(command) {
+  const candidates = commandHints[command] || [command];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (candidate.endsWith(".exe") && existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) {
+      const nested = findNestedExecutable(candidate, `${command}.exe`);
+      if (nested) return nested;
+    }
+  }
+  return command;
+}
+
+function findNestedExecutable(rootDir, executableName) {
+  try {
+    const stack = [rootDir];
+    while (stack.length) {
+      const current = stack.pop();
+      const entries = readdirSyncSafe(current);
+      for (const entry of entries.files) {
+        if (entry.toLowerCase() === executableName.toLowerCase()) return join(current, entry);
+      }
+      stack.push(...entries.directories.map((dir) => join(current, dir)).slice(0, 12));
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function readdirSyncSafe(dir) {
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    return {
+      files: entries.filter((entry) => entry.isFile()).map((entry) => entry.name),
+      directories: entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+    };
+  } catch {
+    return { files: [], directories: [] };
+  }
 }
 
 function json(res, status, body) {

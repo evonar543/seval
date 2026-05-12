@@ -2,24 +2,41 @@ import { captionPresets } from "./scriptTemplates.js";
 import { activeBeatAt, clamp, formatTime, totalDuration } from "./storyboard.js";
 
 const palette = {
-  bg: "#10120f",
-  map: "#2f3a28",
-  map2: "#435333",
-  water: "#173342",
-  grid: "rgba(242, 241, 232, 0.08)",
-  text: "#f2f1e8",
-  muted: "#b7bcae",
-  green: "#8abd5f",
-  amber: "#e5b95b",
-  red: "#d65a4a",
-  blue: "#64a6d9",
-  black: "#080908"
+  bg: "#090b10",
+  panel: "rgba(10, 13, 18, 0.82)",
+  panelSoft: "rgba(18, 24, 31, 0.62)",
+  line: "rgba(255, 255, 255, 0.12)",
+  lineStrong: "rgba(255, 255, 255, 0.24)",
+  text: "#f5f7fb",
+  muted: "rgba(245, 247, 251, 0.72)",
+  dim: "rgba(245, 247, 251, 0.48)",
+  shadow: "rgba(0, 0, 0, 0.44)"
+};
+
+const legacyMap = {
+  titleCard: "hook",
+  imageText: "focus",
+  arrowExplain: "focus",
+  chart: "stats",
+  comparison: "split",
+  steps: "process",
+  code: "board",
+  diagram: "board",
+  stock: "hero",
+  map: "focus",
+  air: "focus",
+  naval: "focus",
+  missile: "focus",
+  ground: "focus",
+  radar: "focus",
+  intel: "board",
+  city: "hero"
 };
 
 export function createRenderer(canvas, hooks = {}) {
   const ctx = canvas.getContext("2d");
 
-  function roundedRect(x, y, w, h, r) {
+  function roundedRect(x, y, w, h, r = 8) {
     const radius = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -30,664 +47,547 @@ export function createRenderer(canvas, hooks = {}) {
     ctx.closePath();
   }
 
-  function grid(time) {
-    ctx.fillStyle = palette.bg;
+  function fillRoundedRect(x, y, w, h, r, fill) {
+    ctx.save();
+    roundedRect(x, y, w, h, r);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function strokeRoundedRect(x, y, w, h, r, stroke, lineWidth = 1) {
+    ctx.save();
+    roundedRect(x, y, w, h, r);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function setText(size, weight = 700, color = palette.text, family = "Inter, Segoe UI, sans-serif") {
+    ctx.fillStyle = color;
+    ctx.font = `${weight} ${size}px ${family}`;
+  }
+
+  function wrapLines(text, maxWidth, size, weight = 700) {
+    setText(size, weight);
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = "";
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function drawTextBlock(text, x, y, maxWidth, size, lineHeight, maxLines, weight = 700, color = palette.text) {
+    const lines = wrapLines(text, maxWidth, size, weight).slice(0, maxLines);
+    setText(size, weight, color);
+    lines.forEach((line, index) => {
+      ctx.fillText(line, x, y + index * lineHeight);
+    });
+    return lines.length;
+  }
+
+  function safeScene(beat) {
+    return beat?.scene || {
+      title: beat?.text || "",
+      kicker: "Explainer",
+      bullets: [],
+      chips: [],
+      caption: beat?.text || "",
+      emphasis: "",
+      quote: beat?.text || ""
+    };
+  }
+
+  function normalizedVisual(beat) {
+    const visual = beat?.visual || "hero";
+    return legacyMap[visual] || visual;
+  }
+
+  function drawBackdrop(time, accent) {
+    const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    bg.addColorStop(0, "#070910");
+    bg.addColorStop(0.55, "#0d1220");
+    bg.addColorStop(1, "#090d16");
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = palette.grid;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
     ctx.lineWidth = 1;
-    const offset = (time * 18) % 64;
-    for (let x = -offset; x < canvas.width; x += 64) {
+    const offset = (time * 12) % 72;
+    for (let x = -offset; x < canvas.width + 72; x += 72) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvas.height);
       ctx.stroke();
     }
-    for (let y = offset; y < canvas.height; y += 64) {
+    for (let y = offset; y < canvas.height + 72; y += 72) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(canvas.width, y);
       ctx.stroke();
     }
-  }
+    ctx.restore();
 
-  function map() {
     ctx.save();
-    ctx.fillStyle = palette.water;
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = accent;
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(1280, 0);
-    ctx.lineTo(1280, 255);
-    ctx.bezierCurveTo(1010, 220, 850, 330, 640, 292);
-    ctx.bezierCurveTo(420, 252, 220, 300, 0, 232);
-    ctx.closePath();
+    ctx.arc(1080, 120, 240, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = palette.map;
+    ctx.globalAlpha = 0.1;
     ctx.beginPath();
-    ctx.moveTo(0, 250);
-    ctx.bezierCurveTo(210, 330, 425, 280, 632, 324);
-    ctx.bezierCurveTo(890, 380, 1010, 260, 1280, 310);
-    ctx.lineTo(1280, 720);
-    ctx.lineTo(0, 720);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = palette.map2;
-    ctx.beginPath();
-    ctx.moveTo(85, 510);
-    ctx.bezierCurveTo(245, 420, 372, 480, 535, 430);
-    ctx.bezierCurveTo(695, 382, 832, 470, 1000, 405);
-    ctx.bezierCurveTo(1095, 368, 1192, 410, 1278, 390);
-    ctx.lineTo(1280, 720);
-    ctx.lineTo(68, 720);
-    ctx.closePath();
+    ctx.arc(180, 580, 280, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
-  function arrow(from, to, progress, color = palette.amber) {
-    const x1 = from.x * canvas.width;
-    const y1 = from.y * canvas.height;
-    const x2 = to.x * canvas.width;
-    const y2 = to.y * canvas.height;
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const xm = x1 + (x2 - x1) * eased;
-    const ym = y1 + (y2 - y1) * eased;
-    const angle = Math.atan2(y2 - y1, x2 - x1);
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 7;
-    ctx.lineCap = "round";
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 18;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.quadraticCurveTo((x1 + x2) / 2, Math.min(y1, y2) - 90, xm, ym);
-    ctx.stroke();
-    ctx.translate(xm, ym);
-    ctx.rotate(angle);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-24, -13);
-    ctx.lineTo(-18, 0);
-    ctx.lineTo(-24, 13);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function unit(x, y, label, color, shape = "rect") {
-    const px = x * canvas.width;
-    const py = y * canvas.height;
-    ctx.save();
-    ctx.fillStyle = "rgba(8, 9, 8, 0.72)";
-    roundedRect(px - 50, py - 26, 100, 52, 8);
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    roundedRect(px - 50, py - 26, 100, 52, 8);
-    ctx.stroke();
-    ctx.fillStyle = color;
-    if (shape === "plane") {
-      ctx.beginPath();
-      ctx.moveTo(px + 21, py);
-      ctx.lineTo(px - 24, py - 15);
-      ctx.lineTo(px - 15, py);
-      ctx.lineTo(px - 24, py + 15);
-      ctx.closePath();
-      ctx.fill();
-    } else if (shape === "ship") {
-      ctx.beginPath();
-      ctx.moveTo(px - 24, py + 8);
-      ctx.lineTo(px + 22, py + 8);
-      ctx.lineTo(px + 10, py + 20);
-      ctx.lineTo(px - 16, py + 20);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillRect(px - 6, py - 10, 20, 16);
-    } else if (shape === "radar") {
-      ctx.beginPath();
-      ctx.arc(px, py + 4, 18, Math.PI, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(px, py + 4);
-      ctx.lineTo(px + 22, py - 16);
-      ctx.stroke();
-    } else {
-      ctx.fillRect(px - 22, py - 10, 44, 20);
-      ctx.fillRect(px - 8, py - 20, 22, 10);
-    }
-    ctx.fillStyle = palette.text;
-    ctx.font = "700 18px Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(label, px, py + 46);
-    ctx.restore();
-  }
-
-  function radar(cx, cy, progress) {
-    const px = cx * canvas.width;
-    const py = cy * canvas.height;
-    ctx.save();
-    ctx.strokeStyle = palette.green;
-    ctx.lineWidth = 3;
-    for (let i = 1; i <= 4; i += 1) {
-      ctx.globalAlpha = 0.16 + i * 0.08;
-      ctx.beginPath();
-      ctx.arc(px, py, i * 42, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 0.86;
-    ctx.translate(px, py);
-    ctx.rotate(progress * Math.PI * 2);
-    ctx.fillStyle = "rgba(138, 189, 95, 0.26)";
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, 180, -0.08, 0.38);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function wrapText(text, x, y, maxWidth, lineHeight, maxLines = 3) {
-    const words = text.split(" ");
-    const lines = [];
-    let line = "";
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = test;
-      }
-    }
-    if (line) lines.push(line);
-    lines.slice(0, maxLines).forEach((item, index) => {
-      ctx.fillText(item, x, y + index * lineHeight);
-    });
-  }
-
-  function keywords(text, count = 5) {
-    return text
-      .replace(/[^\w\s]/g, "")
-      .split(/\s+/)
-      .filter((word) => word.length > 4)
-      .slice(0, count);
-  }
-
-  function centerText(text, y, size = 64, maxWidth = 980, maxLines = 3) {
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.fillStyle = palette.text;
-    ctx.font = `900 ${size}px Segoe UI, sans-serif`;
-    const words = text.split(" ");
-    const lines = [];
-    let line = "";
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = test;
-      }
-    }
-    if (line) lines.push(line);
-    lines.slice(0, maxLines).forEach((item, index) => {
-      ctx.fillText(item, canvas.width / 2, y + index * size * 1.08);
-    });
-    ctx.restore();
-  }
-
-  function blackHook(beat, progress, accent) {
-    ctx.fillStyle = "#050604";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = accent;
-    ctx.fillRect(0, 0, canvas.width * progress, 8);
-    ctx.globalAlpha = 0.16;
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 7; i += 1) {
-      ctx.beginPath();
-      ctx.arc(640, 360, 90 + i * 70 + progress * 30, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-    centerText(beat.text.replace(/^I will be talking about this:\s*/i, ""), 248, 62, 1040, 4);
-    ctx.fillStyle = palette.muted;
-    ctx.font = "800 22px Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("SEVAL EXPLAINER", 640, 506);
-    ctx.textAlign = "left";
-  }
-
-  function explainPanel(beat, progress, accent) {
-    map();
-    ctx.fillStyle = "rgba(8, 9, 8, 0.78)";
-    roundedRect(84, 128, 1112, 390, 8);
-    ctx.fill();
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 3;
-    roundedRect(84, 128, 1112, 390, 8);
-    ctx.stroke();
-    ctx.fillStyle = accent;
-    ctx.font = "900 34px Segoe UI, sans-serif";
-    ctx.fillText("THE IDEA", 126, 194);
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 50px Segoe UI, sans-serif";
-    wrapText(beat.text, 126, 270, 720, 58, 4);
-    arrow({ x: 0.71, y: 0.35 }, { x: 0.88, y: 0.35 + Math.sin(progress * Math.PI) * 0.08 }, progress, accent);
-    unit(0.79, 0.5, "FOCUS", accent, "radar");
-  }
-
-  function chartScene(beat, progress, accent) {
-    ctx.fillStyle = "#090a08";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 42px Segoe UI, sans-serif";
-    wrapText(beat.text, 84, 96, 980, 48, 2);
-    const labels = keywords(beat.text, 5);
-    const values = [0.42, 0.68, 0.54, 0.86, 0.63];
-    ctx.strokeStyle = "rgba(242,241,232,0.25)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(140, 580);
-    ctx.lineTo(1120, 580);
-    ctx.lineTo(1120, 230);
-    ctx.stroke();
-    labels.forEach((label, i) => {
-      const x = 180 + i * 178;
-      const h = 280 * values[i] * progress;
-      ctx.fillStyle = i % 2 ? palette.amber : accent;
-      roundedRect(x, 580 - h, 96, h, 8);
-      ctx.fill();
-      ctx.fillStyle = palette.muted;
-      ctx.font = "800 16px Segoe UI, sans-serif";
-      ctx.fillText(label.toUpperCase(), x - 12, 620);
-    });
-  }
-
-  function timelineScene(beat, progress, accent) {
-    ctx.fillStyle = "#070807";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    centerText("Timeline", 96, 48, 900, 1);
-    ctx.strokeStyle = "rgba(242,241,232,0.22)";
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(160, 360);
-    ctx.lineTo(1120, 360);
-    ctx.stroke();
-    const words = keywords(beat.text, 5);
-    for (let i = 0; i < 5; i += 1) {
-      const x = 180 + i * 220;
-      const on = progress >= i / 5;
-      ctx.fillStyle = on ? accent : "#30352e";
-      ctx.beginPath();
-      ctx.arc(x, 360, on ? 24 : 16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = palette.text;
-      ctx.font = "900 24px Segoe UI, sans-serif";
-      ctx.fillText(`0${i + 1}`, x - 16, 330);
-      ctx.fillStyle = palette.muted;
-      ctx.font = "700 18px Segoe UI, sans-serif";
-      wrapText(words[i] || "beat", x - 70, 415, 150, 22, 2);
-    }
-  }
-
-  function comparisonScene(beat, progress, accent) {
-    ctx.fillStyle = "#080908";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 44px Segoe UI, sans-serif";
-    wrapText(beat.text, 86, 96, 1100, 50, 2);
-    const cards = [
-      { x: 110, title: "Option A", color: accent },
-      { x: 690, title: "Option B", color: palette.amber }
-    ];
-    for (const card of cards) {
-      ctx.fillStyle = "rgba(242,241,232,0.06)";
-      roundedRect(card.x, 230, 480, 310, 8);
-      ctx.fill();
-      ctx.strokeStyle = card.color;
-      roundedRect(card.x, 230, 480, 310, 8);
-      ctx.stroke();
-      ctx.fillStyle = card.color;
-      ctx.font = "900 34px Segoe UI, sans-serif";
-      ctx.fillText(card.title, card.x + 34, 292);
-      for (let i = 0; i < 3; i += 1) {
-        const w = 310 * progress * (0.65 + i * 0.14);
-        ctx.fillStyle = i % 2 ? palette.muted : card.color;
-        roundedRect(card.x + 42, 350 + i * 48, w, 16, 8);
-        ctx.fill();
-      }
-    }
-  }
-
-  function stepsScene(beat, progress, accent) {
-    ctx.fillStyle = "#0b0d0a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 42px Segoe UI, sans-serif";
-    wrapText(beat.text, 80, 92, 1040, 48, 2);
-    const words = keywords(beat.text, 4);
-    for (let i = 0; i < 4; i += 1) {
-      const x = 95 + i * 292;
-      const y = 300 + Math.sin(progress * Math.PI + i) * 10;
-      ctx.globalAlpha = progress >= i / 4 ? 1 : 0.36;
-      ctx.fillStyle = "rgba(242,241,232,0.07)";
-      roundedRect(x, y, 230, 188, 8);
-      ctx.fill();
-      ctx.strokeStyle = i % 2 ? palette.amber : accent;
-      roundedRect(x, y, 230, 188, 8);
-      ctx.stroke();
-      ctx.fillStyle = i % 2 ? palette.amber : accent;
-      ctx.font = "900 42px Segoe UI, sans-serif";
-      ctx.fillText(String(i + 1).padStart(2, "0"), x + 24, y + 58);
-      ctx.fillStyle = palette.text;
-      ctx.font = "900 24px Segoe UI, sans-serif";
-      wrapText(words[i] || "Action", x + 24, y + 112, 170, 28, 2);
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  function codeScene(beat, progress, accent) {
-    ctx.fillStyle = "#060706";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "rgba(242,241,232,0.07)";
-    roundedRect(120, 112, 1040, 500, 8);
-    ctx.fill();
-    ctx.strokeStyle = accent;
-    roundedRect(120, 112, 1040, 500, 8);
-    ctx.stroke();
-    ctx.fillStyle = "#151a14";
-    roundedRect(120, 112, 1040, 46, 8);
-    ctx.fill();
-    ctx.fillStyle = palette.red;
-    ctx.beginPath();
-    ctx.arc(152, 135, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = palette.amber;
-    ctx.beginPath();
-    ctx.arc(176, 135, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = accent;
-    ctx.beginPath();
-    ctx.arc(200, 135, 7, 0, Math.PI * 2);
-    ctx.fill();
-    const lines = [
-      "const idea = script.nextBeat();",
-      "const visual = autoPick(idea);",
-      "timeline.add({ voice, clip, captions });",
-      "render.toCanvas().export('mp4');"
-    ];
-    ctx.font = "800 30px Consolas, monospace";
-    lines.forEach((line, i) => {
-      ctx.fillStyle = i / lines.length < progress ? palette.text : "rgba(242,241,232,0.26)";
-      ctx.fillText(line, 168, 230 + i * 70);
-    });
-    ctx.fillStyle = accent;
-    ctx.font = "900 28px Segoe UI, sans-serif";
-    wrapText(beat.text, 168, 535, 880, 34, 2);
-  }
-
-  function quoteScene(beat, progress, accent) {
-    ctx.fillStyle = "#090a08";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = accent;
-    ctx.font = "900 120px Georgia, serif";
-    ctx.fillText('"', 120, 210);
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 54px Segoe UI, sans-serif";
-    wrapText(beat.text, 180, 240, 900, 62, 4);
-    ctx.fillStyle = palette.muted;
-    ctx.font = "800 22px Segoe UI, sans-serif";
-    ctx.fillText("Context line", 184, 560 + progress * 10);
-  }
-
-  function summaryScene(beat, progress, accent) {
-    ctx.fillStyle = "#060706";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    centerText("Takeaway", 105, 52, 900, 1);
-    ctx.fillStyle = "rgba(242,241,232,0.07)";
-    roundedRect(164, 232, 952, 270, 8);
-    ctx.fill();
-    ctx.strokeStyle = accent;
-    roundedRect(164, 232, 952, 270, 8);
-    ctx.stroke();
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 44px Segoe UI, sans-serif";
-    wrapText(beat.text, 220, 320, 840, 52, 3);
-    ctx.fillStyle = accent;
-    ctx.fillRect(220, 468, 840 * progress, 8);
-  }
-
-  function htmlScene(beat, progress, accent) {
-    const custom = beat.htmlScene || {};
-    const title = custom.title || beat.text;
-    const badge = custom.badge || "<section class='scene'>";
-    const lines = Array.isArray(custom.lines) ? custom.lines.slice(0, 5) : [];
-    ctx.fillStyle = "#070807";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.translate(120 + Math.sin(progress * Math.PI * 2) * 10, 130);
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    roundedRect(0, 0, 1040, 460, 8);
-    ctx.fill();
-    ctx.strokeStyle = accent;
-    ctx.stroke();
-    ctx.fillStyle = "#11160f";
-    roundedRect(34, 36, 972, 86, 8);
-    ctx.fill();
-    ctx.fillStyle = accent;
-    ctx.font = "900 30px Segoe UI, sans-serif";
-    ctx.fillText(badge, 62, 90);
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 48px Segoe UI, sans-serif";
-    wrapText(title, 62, 205, 870, 56, 2);
-    ctx.font = "800 26px Segoe UI, sans-serif";
-    lines.forEach((line, index) => {
-      const y = 350 + index * 42;
-      ctx.globalAlpha = progress >= index / Math.max(1, lines.length) ? 1 : 0.28;
-      ctx.fillStyle = index % 2 ? palette.amber : palette.text;
-      ctx.fillText(line, 82, y);
-    });
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = palette.amber;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(62, 390);
-    ctx.bezierCurveTo(300, 320, 520, 450, 860, 360);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawStock(media, beat, progress) {
+  function drawMediaBackground(media, progress) {
     if (media instanceof HTMLImageElement && media.complete && media.naturalWidth > 0) {
-      const scale = Math.max(canvas.width / media.naturalWidth, canvas.height / media.naturalHeight) * (1.08 + progress * 0.08);
+      const scale = Math.max(canvas.width / media.naturalWidth, canvas.height / media.naturalHeight) * (1.04 + progress * 0.05);
       const w = media.naturalWidth * scale;
       const h = media.naturalHeight * scale;
-      const x = (canvas.width - w) / 2 + Math.sin(progress * Math.PI * 2) * 24;
+      const x = (canvas.width - w) / 2 + Math.sin(progress * Math.PI * 2) * 20;
       const y = (canvas.height - h) / 2 + Math.cos(progress * Math.PI * 2) * 10;
       ctx.drawImage(media, x, y, w, h);
-      ctx.fillStyle = "rgba(8, 9, 8, 0.30)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      return;
+      return true;
     }
     if (media instanceof HTMLVideoElement && media.readyState >= 2) {
-      const scale = Math.max(canvas.width / media.videoWidth, canvas.height / media.videoHeight) * (1.02 + progress * 0.04);
+      const scale = Math.max(canvas.width / media.videoWidth, canvas.height / media.videoHeight) * (1.03 + progress * 0.03);
       const w = media.videoWidth * scale;
       const h = media.videoHeight * scale;
-      const x = (canvas.width - w) / 2 + Math.sin(progress * Math.PI * 2) * 14;
+      const x = (canvas.width - w) / 2 + Math.sin(progress * Math.PI * 2) * 12;
       const y = (canvas.height - h) / 2;
       ctx.drawImage(media, x, y, w, h);
-      ctx.fillStyle = "rgba(8, 9, 8, 0.22)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      return;
+      return true;
     }
-    map();
-    unit(beat.from.x, beat.from.y, "CLIP", palette.blue, "rect");
-    arrow(beat.from, beat.to, progress, palette.green);
+    return false;
   }
 
-  function generated(beat, progress, time) {
-    const accent = palette.accent || palette.green;
-    if (beat.visual === "hook") {
-      blackHook(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "imageText" || beat.visual === "arrowExplain") {
-      explainPanel(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "chart") {
-      chartScene(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "timeline") {
-      timelineScene(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "comparison") {
-      comparisonScene(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "steps") {
-      stepsScene(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "code" || beat.visual === "diagram") {
-      codeScene(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "quote") {
-      quoteScene(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "summary") {
-      summaryScene(beat, progress, accent);
-      return;
-    }
-    if (beat.visual === "html") {
-      htmlScene(beat, progress, accent);
-      return;
-    }
+  function drawMediaOverlay(accent, strength = 0.7) {
+    const top = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    top.addColorStop(0, `rgba(5, 7, 10, ${0.38 + strength * 0.12})`);
+    top.addColorStop(0.45, `rgba(7, 10, 14, ${0.2 + strength * 0.08})`);
+    top.addColorStop(1, `rgba(5, 7, 10, ${0.68 + strength * 0.14})`);
+    ctx.fillStyle = top;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    map();
-    if (beat.visual === "radar") {
-      radar(0.32, 0.42, time * 0.22);
-      unit(beat.to.x, beat.to.y, "TRACK", palette.red, "plane");
-      arrow(beat.from, beat.to, progress, accent);
-    } else if (beat.visual === "air") {
-      unit(beat.from.x, beat.from.y, "BLUE", palette.blue, "plane");
-      unit(beat.to.x, beat.to.y, "RED", palette.red, "plane");
-      arrow(beat.from, beat.to, progress, palette.blue);
-    } else if (beat.visual === "naval") {
-      unit(0.18, 0.34, "FLEET", palette.blue, "ship");
-      unit(0.78, 0.41, "COAST", palette.amber, "radar");
-      arrow({ x: 0.2, y: 0.34 }, { x: 0.76, y: 0.4 }, progress, palette.amber);
-    } else if (beat.visual === "missile") {
-      unit(beat.from.x, beat.from.y, "LAUNCH", palette.red, "radar");
-      unit(beat.to.x, beat.to.y, "ZONE", palette.amber, "rect");
-      arrow(beat.from, beat.to, progress, palette.red);
-    } else if (beat.visual === "intel") {
-      ctx.fillStyle = "rgba(8, 9, 8, 0.72)";
-      roundedRect(132, 152, 1016, 330, 8);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(138, 189, 95, 0.46)";
-      roundedRect(132, 152, 1016, 330, 8);
-      ctx.stroke();
-      ctx.fillStyle = palette.green;
-      ctx.font = "900 34px Segoe UI, sans-serif";
-      ctx.fillText("INTEL TIMELINE", 174, 214);
-      for (let i = 0; i < 5; i += 1) {
-        const x = 190 + i * 190;
-        const y = 292 + Math.sin(time + i) * 12;
-        ctx.fillStyle = i / 4 <= progress ? palette.amber : "rgba(242, 241, 232, 0.22)";
-        ctx.beginPath();
-        ctx.arc(x, y, 16, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillRect(x + 20, y - 3, 110, 6);
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, 0, canvas.width, 6);
+    ctx.restore();
+  }
+
+  function drawChips(chips, x, y, accent) {
+    let offset = x;
+    for (const chip of chips.slice(0, 4)) {
+      setText(15, 700);
+      const width = Math.ceil(ctx.measureText(chip).width) + 26;
+      fillRoundedRect(offset, y, width, 30, 15, "rgba(255,255,255,0.08)");
+      strokeRoundedRect(offset, y, width, 30, 15, "rgba(255,255,255,0.12)");
+      setText(15, 700, accent);
+      ctx.fillText(chip, offset + 13, y + 20);
+      offset += width + 10;
+    }
+  }
+
+  function drawPanelTitle(scene, accent, progress, x = 88, y = 96, width = 660) {
+    setText(15, 700, accent);
+    ctx.fillText((scene.kicker || "Explainer").toUpperCase(), x, y);
+    drawTextBlock(scene.title || "", x, y + 44, width, 56, 62, 2, 800, palette.text);
+    if (scene.chips?.length) drawChips(scene.chips, x, y + 130 + progress * 6, accent);
+  }
+
+  function drawBulletList(scene, accent, x, y, width, progress) {
+    const bullets = scene.bullets?.length ? scene.bullets : [scene.caption];
+    bullets.slice(0, 3).forEach((bullet, index) => {
+      const on = progress >= index * 0.18;
+      ctx.save();
+      ctx.globalAlpha = on ? 1 : 0.3;
+      fillRoundedRect(x, y + index * 70, width, 54, 10, "rgba(255,255,255,0.06)");
+      setText(18, 800, accent);
+      ctx.fillText(String(index + 1).padStart(2, "0"), x + 18, y + 33 + index * 70);
+      drawTextBlock(bullet, x + 64, y + 35 + index * 70, width - 86, 22, 26, 1, 600, palette.text);
+      ctx.restore();
+    });
+  }
+
+  function drawDivider(accent, x, y, w, progress) {
+    fillRoundedRect(x, y, w * progress, 5, 3, accent);
+  }
+
+  function sceneHook(beat, scene, progress, accent) {
+    const bg = ctx.createRadialGradient(640, 240, 20, 640, 240, 620);
+    bg.addColorStop(0, "rgba(18,25,40,0.92)");
+    bg.addColorStop(1, "#06080d");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawDivider(accent, 84, 74, 280, Math.min(1, progress * 1.3));
+    setText(16, 700, accent);
+    ctx.fillText("SEVAL EXPLAINER", 84, 120);
+    const title = beat.text.replace(/^I will be talking about this:\s*/i, "").replace(/\.$/, "");
+    drawTextBlock(title, 84, 232, 920, 72, 80, 3, 800, palette.text);
+    setText(20, 500, palette.muted);
+    drawTextBlock(scene.caption, 88, 488, 780, 30, 36, 2, 500, palette.muted);
+    fillRoundedRect(84, 580, 300, 44, 22, "rgba(255,255,255,0.06)");
+    setText(18, 700, accent);
+    ctx.fillText(scene.kicker || "Opening line", 104, 608);
+  }
+
+  function sceneHero(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 6, accent);
+    fillRoundedRect(72, 74, 580, 292, 10, "rgba(8, 10, 14, 0.62)");
+    strokeRoundedRect(72, 74, 580, 292, 10, "rgba(255,255,255,0.1)");
+    drawPanelTitle(scene, accent, progress, 96, 112, 520);
+    setText(26, 600, palette.muted);
+    drawTextBlock(scene.caption, 96, 284, 500, 26, 32, 3, 600, palette.muted);
+    if (scene.emphasis) {
+      fillRoundedRect(918, 90, 214, 72, 10, "rgba(8, 10, 14, 0.74)");
+      setText(15, 700, palette.dim);
+      ctx.fillText("FOCUS", 942, 118);
+      setText(28, 800, accent);
+      ctx.fillText(scene.emphasis, 942, 148);
+    }
+    if (scene.chips?.length) drawChips(scene.chips, 96, 320, accent);
+  }
+
+  function sceneFocus(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 5, accent);
+    fillRoundedRect(70, 90, 520, 440, 10, "rgba(8, 10, 14, 0.76)");
+    strokeRoundedRect(70, 90, 520, 440, 10, "rgba(255,255,255,0.1)");
+    drawPanelTitle(scene, accent, progress, 96, 128, 460);
+    drawBulletList(scene, accent, 96, 282, 454, progress);
+
+    fillRoundedRect(710, 132, 454, 334, 10, "rgba(10, 13, 18, 0.52)");
+    strokeRoundedRect(710, 132, 454, 334, 10, "rgba(255,255,255,0.08)");
+    ctx.save();
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(772, 392);
+    ctx.bezierCurveTo(862, 260, 938, 240, 1082, 204 + Math.sin(progress * Math.PI) * 10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(956, 328);
+    ctx.lineTo(1088, 204);
+    ctx.lineTo(1052, 208);
+    ctx.stroke();
+    ctx.restore();
+
+    fillRoundedRect(774, 340, 170, 76, 10, "rgba(255,255,255,0.08)");
+    fillRoundedRect(956, 184, 170, 76, 10, "rgba(255,255,255,0.08)");
+    setText(15, 700, palette.dim);
+    ctx.fillText("CAUSE", 796, 368);
+    ctx.fillText("RESULT", 980, 212);
+    setText(28, 800, accent);
+    ctx.fillText(scene.bullets?.[0] || scene.title, 796, 404);
+    ctx.fillText(scene.bullets?.[1] || scene.emphasis || scene.caption, 980, 248);
+  }
+
+  function sceneProcess(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 5, accent);
+    drawPanelTitle(scene, accent, progress, 88, 102, 720);
+    const cards = (scene.bullets?.length ? scene.bullets : scene.chips).slice(0, 4);
+    cards.forEach((item, index) => {
+      const x = 82 + index * 286;
+      const y = 296;
+      const active = progress >= index * 0.18;
+      ctx.save();
+      ctx.globalAlpha = active ? 1 : 0.35;
+      fillRoundedRect(x, y, 250, 190, 10, "rgba(8, 10, 14, 0.78)");
+      strokeRoundedRect(x, y, 250, 190, 10, "rgba(255,255,255,0.1)");
+      setText(42, 800, active ? accent : palette.dim);
+      ctx.fillText(String(index + 1).padStart(2, "0"), x + 24, y + 54);
+      drawTextBlock(item, x + 24, y + 106, 192, 28, 34, 2, 700, palette.text);
+      ctx.restore();
+      if (index < cards.length - 1) {
+        fillRoundedRect(x + 248, 388, 30, 6, 3, "rgba(255,255,255,0.24)");
       }
-    } else {
-      unit(beat.from.x, beat.from.y, "MOVE", palette.blue, "rect");
-      unit(beat.to.x, beat.to.y, "ZONE", palette.amber, "rect");
-      arrow(beat.from, beat.to, progress, palette.green);
+    });
+  }
+
+  function sceneStats(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 6, accent);
+    drawPanelTitle(scene, accent, progress, 88, 98, 720);
+    const labels = (scene.chips?.length ? scene.chips : scene.bullets || []).slice(0, 4);
+    const values = [0.42, 0.68, 0.56, 0.82];
+    fillRoundedRect(82, 250, 1114, 330, 10, "rgba(8, 10, 14, 0.72)");
+    strokeRoundedRect(82, 250, 1114, 330, 10, "rgba(255,255,255,0.08)");
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(128, 534);
+    ctx.lineTo(1150, 534);
+    ctx.lineTo(1150, 294);
+    ctx.stroke();
+    ctx.restore();
+    labels.forEach((label, index) => {
+      const x = 164 + index * 238;
+      const h = 210 * values[index] * progress;
+      fillRoundedRect(x, 534 - h, 112, h, 8, index % 2 ? "rgba(255,255,255,0.2)" : accent);
+      setText(17, 700, palette.muted);
+      drawTextBlock(label, x - 4, 566, 120, 17, 20, 2, 700, palette.muted);
+    });
+    if (scene.emphasis) {
+      fillRoundedRect(968, 104, 198, 72, 10, "rgba(8,10,14,0.74)");
+      setText(15, 700, palette.dim);
+      ctx.fillText("SIGNAL", 992, 132);
+      setText(30, 800, accent);
+      ctx.fillText(scene.emphasis, 992, 162);
     }
   }
 
-  function lowerThird(beat, progress, captionKey = "documentary") {
+  function sceneTimeline(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 6, accent);
+    drawPanelTitle(scene, accent, progress, 88, 102, 700);
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(140, 398);
+    ctx.lineTo(1140, 398);
+    ctx.stroke();
+    ctx.restore();
+    const labels = (scene.bullets?.length ? scene.bullets : scene.chips).slice(0, 4);
+    labels.forEach((label, index) => {
+      const x = 170 + index * 314;
+      const active = progress >= index * 0.18;
+      ctx.save();
+      ctx.globalAlpha = active ? 1 : 0.34;
+      fillRoundedRect(x - 80, 286, 160, 72, 10, "rgba(8, 10, 14, 0.78)");
+      strokeRoundedRect(x - 80, 286, 160, 72, 10, "rgba(255,255,255,0.08)");
+      fillRoundedRect(x - 16, 382, 32, 32, 16, active ? accent : "rgba(255,255,255,0.18)");
+      setText(14, 700, palette.dim);
+      ctx.fillText(String(index + 1).padStart(2, "0"), x - 12, 434);
+      drawTextBlock(label, x - 60, 314, 120, 18, 22, 2, 700, palette.text);
+      ctx.restore();
+    });
+  }
+
+  function sceneSplit(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 5, accent);
+    drawPanelTitle(scene, accent, progress, 88, 98, 720);
+    const left = scene.bullets?.[0] || scene.chips?.[0] || "Option A";
+    const right = scene.bullets?.[1] || scene.chips?.[1] || "Option B";
+    const leftPoints = scene.bullets?.slice(0, 3) || [];
+    const rightPoints = scene.chips?.slice(1, 4) || [];
+    fillRoundedRect(82, 242, 522, 300, 10, "rgba(8, 10, 14, 0.76)");
+    fillRoundedRect(676, 242, 522, 300, 10, "rgba(8, 10, 14, 0.76)");
+    strokeRoundedRect(82, 242, 522, 300, 10, "rgba(255,255,255,0.08)");
+    strokeRoundedRect(676, 242, 522, 300, 10, "rgba(255,255,255,0.08)");
+    setText(30, 800, accent);
+    ctx.fillText(left, 114, 298);
+    setText(30, 800, palette.text);
+    ctx.fillText(right, 708, 298);
+    drawBulletList({ bullets: leftPoints }, accent, 114, 334, 456, progress);
+    drawBulletList({ bullets: rightPoints }, palette.text, 708, 334, 456, progress);
+  }
+
+  function sceneBoard(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 5, accent);
+    fillRoundedRect(104, 92, 1072, 512, 10, "rgba(8, 10, 14, 0.84)");
+    strokeRoundedRect(104, 92, 1072, 512, 10, "rgba(255,255,255,0.1)");
+    fillRoundedRect(104, 92, 1072, 48, 10, "rgba(255,255,255,0.06)");
+    fillRoundedRect(126, 110, 10, 10, 5, "#ff6b6b");
+    fillRoundedRect(144, 110, 10, 10, 5, "#ffd166");
+    fillRoundedRect(162, 110, 10, 10, 5, accent);
+    drawPanelTitle(scene, accent, progress, 142, 188, 840);
+    const lines = scene.bullets?.length
+      ? scene.bullets
+      : [
+          "Pick a visual per idea.",
+          "Use real media for context.",
+          "Use overlays for explanation."
+        ];
+    lines.slice(0, 3).forEach((line, index) => {
+      fillRoundedRect(142, 322 + index * 68, 720, 50, 8, "rgba(255,255,255,0.05)");
+      setText(20, 700, accent);
+      ctx.fillText(`0${index + 1}`, 160, 354 + index * 68);
+      drawTextBlock(line, 212, 356 + index * 68, 610, 22, 28, 1, 600, palette.text);
+    });
+    fillRoundedRect(898, 224, 228, 280, 10, "rgba(255,255,255,0.05)");
+    setText(15, 700, palette.dim);
+    ctx.fillText("MODULES", 924, 254);
+    (scene.chips?.length ? scene.chips : ["Script", "Scenes", "Media", "Audio"]).slice(0, 4).forEach((chip, index) => {
+      fillRoundedRect(924, 284 + index * 48, 176, 34, 17, index % 2 ? "rgba(255,255,255,0.08)" : accent);
+      setText(16, 700, index % 2 ? palette.text : "#071015");
+      ctx.fillText(chip, 940, 307 + index * 48);
+    });
+  }
+
+  function sceneQuote(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 4, accent);
+    setText(140, 800, accent, "Georgia, serif");
+    ctx.fillText("“", 92, 222);
+    drawTextBlock(scene.quote || beat.text, 180, 234, 860, 52, 62, 4, 800, palette.text);
+    drawDivider(accent, 184, 524, 280, Math.min(1, progress * 1.2));
+    setText(22, 600, palette.muted);
+    ctx.fillText(scene.kicker || "Key line", 184, 568);
+  }
+
+  function sceneSummary(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 3, accent);
+    fillRoundedRect(140, 116, 1000, 438, 12, "rgba(8, 10, 14, 0.78)");
+    strokeRoundedRect(140, 116, 1000, 438, 12, "rgba(255,255,255,0.1)");
+    setText(16, 700, accent);
+    ctx.fillText("TAKEAWAY", 176, 166);
+    drawTextBlock(scene.title || beat.text, 176, 242, 900, 60, 68, 2, 800, palette.text);
+    drawBulletList(scene, accent, 176, 356, 816, progress);
+    drawDivider(accent, 176, 512, 780, Math.min(1, progress * 1.2));
+  }
+
+  function sceneHtml(beat, scene, progress, accent, hasMedia) {
+    if (!hasMedia) drawBackdrop(progress * 6, accent);
+    const custom = beat.htmlScene || {};
+    const title = custom.title || scene.title;
+    const badge = custom.badge || "Scene JSON";
+    const lines = Array.isArray(custom.lines) && custom.lines.length ? custom.lines : scene.bullets;
+    fillRoundedRect(110, 108, 1060, 500, 10, "rgba(8, 10, 14, 0.82)");
+    strokeRoundedRect(110, 108, 1060, 500, 10, "rgba(255,255,255,0.1)");
+    fillRoundedRect(140, 144, 220, 34, 17, "rgba(255,255,255,0.06)");
+    setText(15, 700, accent);
+    ctx.fillText(badge, 160, 166);
+    drawTextBlock(title, 140, 250, 760, 54, 62, 2, 800, palette.text);
+    lines.slice(0, 4).forEach((line, index) => {
+      fillRoundedRect(144, 332 + index * 60, 512, 40, 8, "rgba(255,255,255,0.05)");
+      setText(18, 700, index % 2 ? accent : palette.text);
+      ctx.fillText(line, 168, 358 + index * 60);
+    });
+    ctx.save();
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(734, 418);
+    ctx.bezierCurveTo(820, 320, 934, 494, 1088, 296);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCaption(beat, progress, captionKey = "documentary", accent) {
     const preset = captionPresets[captionKey] || captionPresets.documentary;
-    const alpha = clamp(progress / 0.18, 0, 1) * clamp((1 - progress) / 0.08, 0, 1);
+    const alphaIn = clamp(progress / 0.14, 0, 1);
+    const alphaOut = clamp((1 - progress) / 0.12, 0, 1);
+    const alpha = Math.min(alphaIn, alphaOut);
+    if (alpha <= 0) return;
+
+    const text = beat.captionText || beat.scene?.caption || beat.text;
     ctx.save();
     ctx.globalAlpha = alpha;
-    const isCenter = preset.position === "center";
-    const x = isCenter ? 130 : 64;
-    const y = isCenter ? 284 : preset.position === "bottom" ? 610 : 548;
-    const w = isCenter ? 1020 : 1152;
-    const h = isCenter ? 156 : preset.position === "bottom" ? 74 : 124;
+    const center = preset.position === "center";
+    const x = center ? 160 : 96;
+    const y = center ? 534 : preset.position === "bottom" ? 642 : 594;
+    const w = center ? 960 : 1088;
+    const h = center ? 84 : 56;
     if (preset.box) {
-      ctx.fillStyle = "rgba(8, 9, 8, 0.78)";
-      roundedRect(x, y, w, h, 8);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(229, 185, 91, 0.55)";
-      ctx.lineWidth = 2;
-      roundedRect(x, y, w, h, 8);
-      ctx.stroke();
+      fillRoundedRect(x, y, w, h, 10, "rgba(6, 8, 12, 0.78)");
+      strokeRoundedRect(x, y, w, h, 10, "rgba(255,255,255,0.1)");
+      fillRoundedRect(x, y, 4, h, 2, accent);
     }
-    ctx.fillStyle = palette.accent || palette.amber;
-    ctx.font = "800 18px Segoe UI, sans-serif";
-    if (!isCenter) ctx.fillText(`BEAT ${beat.index + 1}`, x + 28, y + 36);
-    ctx.fillStyle = palette.text;
-    const weight = preset.weight === "black" ? 900 : preset.weight === "medium" ? 600 : 800;
-    ctx.font = `${weight} ${isCenter ? 42 : 29}px Segoe UI, sans-serif`;
-    if (isCenter) {
+    setText(center ? 34 : 24, preset.weight === "black" ? 800 : preset.weight === "medium" ? 500 : 700, palette.text);
+    if (center) {
       ctx.textAlign = "center";
-      wrapText(beat.text, canvas.width / 2, y + 58, 900, 48, 2);
+      drawTextBlock(text, canvas.width / 2 - 420, y + 48, 840, 34, 40, 1, preset.weight === "black" ? 800 : 700, palette.text);
       ctx.textAlign = "left";
     } else {
-      wrapText(beat.text, x + 28, y + (preset.position === "bottom" ? 45 : 72), 1060, 33, 3);
-    }
-    if (beat.media?.title) {
-      ctx.fillStyle = palette.muted;
-      ctx.font = "700 16px Segoe UI, sans-serif";
-      wrapText(`${beat.media.source}: ${beat.media.title}`, x + 28, y + h - 16, 900, 20, 1);
+      drawTextBlock(text, x + (preset.box ? 24 : 0), y + 34, w - 42, 24, 28, 1, preset.weight === "medium" ? 500 : 700, palette.text);
     }
     ctx.restore();
   }
 
-  function header(beat, time, duration) {
-    ctx.save();
-    ctx.fillStyle = "rgba(8, 9, 8, 0.66)";
-    roundedRect(46, 34, 1188, 58, 8);
-    ctx.fill();
-    ctx.fillStyle = palette.text;
-    ctx.font = "900 28px Segoe UI, sans-serif";
-    ctx.fillText("SEVAL // PUBLIC FOOTAGE EXPLAINER", 70, 72);
-    ctx.fillStyle = palette.muted;
-    ctx.font = "700 18px Segoe UI, sans-serif";
+  function drawHeader(beat, time, duration, accent) {
+    fillRoundedRect(44, 28, 1192, 52, 10, "rgba(7, 10, 14, 0.62)");
+    strokeRoundedRect(44, 28, 1192, 52, 10, "rgba(255,255,255,0.08)");
+    setText(22, 800, palette.text);
+    ctx.fillText("SEVAL", 68, 61);
+    setText(14, 700, palette.dim);
+    ctx.fillText("Modular AI Video Studio", 150, 61);
     ctx.textAlign = "right";
-    ctx.fillText(`${formatTime(time)} / ${formatTime(duration)}`, 1208, 71);
+    setText(16, 700, palette.muted);
+    ctx.fillText(`${formatTime(time)} / ${formatTime(duration)}`, 1210, 61);
     ctx.textAlign = "left";
-    ctx.fillStyle = palette.amber;
-    ctx.fillRect(70, 84, 420 * ((time % 6) / 6), 4);
-    ctx.fillStyle = palette.green;
-    ctx.fillText(beat?.media ? "PUBLIC CLIP" : (beat?.visual || "READY").toUpperCase(), 70, 118);
-    ctx.restore();
+    fillRoundedRect(68, 72, 280 * ((time % 6) / 6), 4, 2, accent);
+    if (beat) {
+      fillRoundedRect(1012, 92, 170, 32, 16, "rgba(7,10,14,0.62)");
+      setText(14, 700, accent);
+      ctx.fillText((normalizedVisual(beat) || "scene").toUpperCase(), 1030, 113);
+    }
+  }
+
+  function renderScene(beat, progress, media, options) {
+    const scene = safeScene(beat);
+    const accent = options.accent || "#9ad1ff";
+    const hasMedia = drawMediaBackground(media, progress);
+    if (hasMedia) drawMediaOverlay(accent, normalizedVisual(beat) === "hook" ? 0.9 : 0.7);
+    const visual = normalizedVisual(beat);
+
+    if (visual === "hook") {
+      sceneHook(beat, scene, progress, accent);
+      return;
+    }
+    if (visual === "focus") {
+      sceneFocus(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "process") {
+      sceneProcess(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "stats") {
+      sceneStats(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "timeline") {
+      sceneTimeline(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "split") {
+      sceneSplit(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "board") {
+      sceneBoard(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "quote") {
+      sceneQuote(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "summary") {
+      sceneSummary(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    if (visual === "html") {
+      sceneHtml(beat, scene, progress, accent, hasMedia);
+      return;
+    }
+    sceneHero(beat, scene, progress, accent, hasMedia);
   }
 
   function drawFrame(beats, time = 0, videoPool = new Map(), options = {}) {
-    palette.accent = options.accent || palette.green;
     const duration = totalDuration(beats) || 1;
     const safeTime = clamp(time, 0, duration);
     const beat = activeBeatAt(beats, safeTime);
     const progress = beat ? clamp((safeTime - beat.start) / Math.max(0.1, beat.duration), 0, 1) : 0;
-    grid(safeTime);
-    if (beat?.media?.previewUrl && (beat.visual === "stock" || beat.visual === "auto")) {
-      drawStock(videoPool.get(beat.media.previewUrl), beat, progress);
-    } else if (beat) {
-      generated(beat, progress, safeTime);
-    }
-    header(beat, safeTime, duration);
-    if (beat) lowerThird(beat, progress, options.caption);
+    const accent = options.accent || "#8ec5ff";
+    const mediaKey = beat?.media?.previewUrl;
+    const media = mediaKey ? videoPool.get(mediaKey) : null;
+
+    drawBackdrop(safeTime, accent);
+    if (beat) renderScene(beat, progress, media, options);
+    drawHeader(beat, safeTime, duration, accent);
+    if (beat) drawCaption(beat, progress, options.caption, accent);
     hooks.onFrame?.(beat, safeTime, duration);
   }
 

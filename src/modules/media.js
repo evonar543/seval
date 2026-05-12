@@ -49,7 +49,7 @@ export async function autoMatchBeats(beats, source, keys = {}, onProgress = () =
       const result = data.results.find((item) => item.previewUrl);
       if (result) {
         beat.media = result;
-        beat.visual = "stock";
+        if (beat.visual === "auto" || beat.visual === "stock") beat.visual = "hero";
       }
     } catch {
       continue;

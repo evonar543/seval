@@ -64,6 +64,30 @@ function createTone(audioContext, destination, start, duration, frequency, gainV
   oscillator.stop(start + duration + 0.05);
 }
 
+function createNoiseBuffer(audioContext, duration = 0.12) {
+  const length = Math.max(1, Math.floor(audioContext.sampleRate * duration));
+  const buffer = audioContext.createBuffer(1, length, audioContext.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < length; i += 1) {
+    data[i] = Math.random() * 2 - 1;
+  }
+  return buffer;
+}
+
+function scheduleNoiseHit(audioContext, destination, buffer, start, gainValue, filterFrequency = 3200) {
+  const source = audioContext.createBufferSource();
+  const gain = audioContext.createGain();
+  const filter = audioContext.createBiquadFilter();
+  source.buffer = buffer;
+  filter.type = "bandpass";
+  filter.frequency.value = filterFrequency;
+  gain.gain.setValueAtTime(gainValue, start);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+  source.connect(filter).connect(gain).connect(destination);
+  source.start(start);
+  source.stop(start + 0.14);
+}
+
 export function addMusicAndSoundDesign(audioContext, destination, beats, duration, bedKey = "tension", decodedMusic = null) {
   const bed = musicBeds[bedKey] || musicBeds.tension;
   const now = audioContext.currentTime;
@@ -84,30 +108,43 @@ export function addMusicAndSoundDesign(audioContext, destination, beats, duratio
     music.start(now, 0);
     music.stop(now + duration + 0.25);
   } else {
-    const bass = audioContext.createOscillator();
-    const bassGain = audioContext.createGain();
-    bass.type = "triangle";
-    bass.frequency.value = bed.base;
-    bassGain.gain.value = bed.gain;
-    bass.connect(bassGain).connect(destination);
-    bass.start(now);
-    bass.stop(now + duration + 0.5);
+    const bpm = 96;
+    const beatLength = 60 / bpm;
+    const chords = [
+      [bed.base, bed.base * 1.25, bed.base * 1.5],
+      [bed.base * 0.9, bed.base * 1.2, bed.base * 1.42],
+      [bed.base * 0.82, bed.base * 1.1, bed.base * 1.34],
+      [bed.base * 0.96, bed.base * 1.2, bed.base * 1.5]
+    ];
+    const melody = [1.5, 1.68, 1.88, 2.24, 1.88, 1.68, 1.5, 1.12];
+    const noiseBuffer = createNoiseBuffer(audioContext);
+
+    for (let time = 0, step = 0; time < duration + 0.3; time += beatLength / 2, step += 1) {
+      const chord = chords[Math.floor(time / (beatLength * 4)) % chords.length];
+      createTone(audioContext, destination, now + time, beatLength * 1.6, chord[0] / 2, bed.gain * 0.9, "triangle");
+      createTone(audioContext, destination, now + time, beatLength * 1.4, chord[1], bed.gain * 0.32, "sine");
+      createTone(audioContext, destination, now + time, beatLength * 1.2, chord[2], bed.gain * 0.22, "sine");
+      createTone(audioContext, destination, now + time, beatLength * 0.28, bed.base * melody[step % melody.length], bed.gain * 0.85, "triangle");
+      if (step % 2 === 0) createTone(audioContext, destination, now + time, 0.18, bed.base * 0.68, bed.gain * 1.3, "sawtooth");
+      if (step % 4 === 2) scheduleNoiseHit(audioContext, destination, noiseBuffer, now + time, bed.gain * 1.4, 1700);
+      scheduleNoiseHit(audioContext, destination, noiseBuffer, now + time + beatLength / 4, bed.gain * 0.35, 5000);
+    }
   }
 
   const pulse = audioContext.createOscillator();
   const pulseGain = audioContext.createGain();
   pulse.type = "square";
   pulse.frequency.value = bed.pulse;
-  pulseGain.gain.value = bed.gain * 0.18;
+  pulseGain.gain.value = bed.gain * 0.08;
   pulse.connect(pulseGain).connect(destination);
   pulse.start(now);
   pulse.stop(now + duration + 0.5);
 
   for (const beat of beats) {
     const start = now + beat.start + 0.08;
-    createTone(audioContext, destination, start, 0.16, bed.pulse + beat.index * 8, 0.028);
-    if (["missile", "air", "naval", "stock"].includes(beat.visual)) {
-      createTone(audioContext, destination, start + beat.duration * 0.62, 0.28, 76, 0.045, "sawtooth");
+    createTone(audioContext, destination, start, 0.15, bed.pulse + beat.index * 8, 0.022);
+    if (["hero", "focus", "stats", "timeline", "summary"].includes(beat.visual)) {
+      createTone(audioContext, destination, start + beat.duration * 0.62, 0.22, bed.base * 0.72, 0.028, "triangle");
     }
   }
 }
